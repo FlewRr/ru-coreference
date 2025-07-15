@@ -4,6 +4,7 @@ from utils import coref_loss, get_gold_antecedents
 from dataset import collate_fn, RuCoCoDataset
 from model import SpanBert
 from clusters import get_predicted_clusters
+from tqdm import tqdm
 
 def get_gold_clusters(mentions, mention_to_cluster):
     """
@@ -45,13 +46,9 @@ def coref_metrics(pred_clusters, gold_clusters):
 
     return precision, recall, f1
 
-
-
-from tqdm import tqdm
-
 if __name__ == "__main__":
     dataset = RuCoCoDataset(data_dir="RuCoCo")
-    dataloader = DataLoader(dataset, batch_size=2, collate_fn=collate_fn, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=8, collate_fn=collate_fn, shuffle=True)
 
     model = SpanBert()
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
