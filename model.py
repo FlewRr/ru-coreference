@@ -60,16 +60,12 @@ class SpanBert(nn.Module):
         self.top_k = top_k
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        span_starts: list[list[int]],
-        span_ends: list[list[int]],
+            self,
+            input_ids: torch.Tensor,
+            attention_mask: torch.Tensor,
+            span_starts: list[list[int]],
+            span_ends: list[list[int]],
     ):
-        """
-        input_ids, attention_mask: (batch_size, seq_len)
-        span_starts, span_ends: list длины batch_size, каждый элемент — list индексов спанов для примера
-        """
         batch_size = input_ids.size(0)
         device = input_ids.device
 
@@ -77,22 +73,33 @@ class SpanBert(nn.Module):
 
         all_mention_scores = []
         all_pairwise_scores = []
+        filtered_span_starts_batch = []
+        filtered_span_ends_batch = []
 
         for b in range(batch_size):
             starts = span_starts[b]
             ends = span_ends[b]
 
             if len(starts) == 0:
-                # чтобы не падало на пустых спанах
                 starts = [0]
                 ends = [0]
 
-            span_starts_tensor = torch.tensor(starts, device=device).unsqueeze(0)  # (1, num_spans)
-            span_ends_tensor = torch.tensor(ends, device=device).unsqueeze(0)      # (1, num_spans)
+            # Пример фильтрации (тут можно применить top-K или другие критерии)
+            # Пока просто берем все спаны без фильтрации
+            filtered_starts = starts
+            filtered_ends = ends
 
-            mention_scores = self.mention_scorer(sequence_output[b:b+1], span_starts_tensor, span_ends_tensor).squeeze(0)  # (num_spans,)
+            filtered_span_starts_batch.append(filtered_starts)
+            filtered_span_ends_batch.append(filtered_ends)
 
-            span_repr = self.mention_scorer.span_repr(sequence_output[b:b+1], span_starts_tensor, span_ends_tensor).squeeze(0)  # (num_spans, hidden)
+            span_starts_tensor = torch.tensor(filtered_starts, device=device).unsqueeze(0)  # (1, num_spans)
+            span_ends_tensor = torch.tensor(filtered_ends, device=device).unsqueeze(0)  # (1, num_spans)
+
+            mention_scores = self.mention_scorer(sequence_output[b:b + 1], span_starts_tensor,
+                                                 span_ends_tensor).squeeze(0)  # (num_spans,)
+
+            span_repr = self.mention_scorer.span_repr(sequence_output[b:b + 1], span_starts_tensor,
+                                                      span_ends_tensor).squeeze(0)  # (num_spans, hidden)
 
             n = span_repr.size(0)
             pairwise_scores = torch.zeros((n, n), device=device)
@@ -103,4 +110,4 @@ class SpanBert(nn.Module):
             all_mention_scores.append(mention_scores)
             all_pairwise_scores.append(pairwise_scores)
 
-        return all_mention_scores, all_pairwise_scores
+        return all_mention_scores, all_pairwise_scores, filtered_span_starts_batch, filtered_span_ends_batch
