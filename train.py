@@ -49,7 +49,7 @@ def coref_metrics(pred_clusters, gold_clusters):
 
 if __name__ == "__main__":
     dataset = RuCoCoDataset(data_dir="RuCoCo")
-    dataloader = DataLoader(dataset, batch_size=2, collate_fn=collate_fn, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=8, collate_fn=collate_fn, shuffle=True)
 
     model = SpanBert()
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
@@ -58,6 +58,14 @@ if __name__ == "__main__":
 
     model.train()
     for epoch in range(3):
+        epoch_loss = 0.0
+        total_batches = 0
+
+        epoch_p = 0.0
+        epoch_r = 0.0
+        epoch_f1 = 0.0
+        total_samples = 0  # total number of samples to average over
+
         for batch in dataloader:
             optimizer.zero_grad()
 
@@ -90,9 +98,7 @@ if __name__ == "__main__":
                 filtered_span_ends = filtered_span_ends_batch[b]
                 mention_to_cluster = mention_to_cluster_batch[b]
 
-                # Формируем gold_antecedents только для отфильтрованных спанов
-                # Нужно сопоставить индексы filtered_span с их кластерами
-                filtered_indices = list(range(len(filtered_span_starts)))  # индексы отфильтрованных спанов
+                filtered_indices = list(range(len(filtered_span_starts)))  # indices of filtered spans
                 gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
@@ -107,8 +113,10 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
+            epoch_loss += loss.item()
+            total_batches += 1
+
             with torch.no_grad():
-                # Для метрик используем именно отфильтрованные спаны
                 for b in range(batch_size):
                     span_starts = filtered_span_starts_batch[b]
                     span_ends = filtered_span_ends_batch[b]
@@ -118,6 +126,10 @@ if __name__ == "__main__":
                     gold_clusters = get_gold_clusters(batch['mentions'][b], batch['mention_to_cluster'][b])
 
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
-                    print(f"[Train Metrics] Batch {b} Epoch {epoch}: P={p:.3f}, R={r:.3f}, F1={f1:.3f}")
+                    epoch_p += p
+                    epoch_r += r
+                    epoch_f1 += f1
+                    total_samples += 1
 
-            print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
+        print(f"Epoch {epoch} Mean Loss: {epoch_loss / total_batches:.4f}")
+        print(f"Epoch {epoch} Mean Precision: {epoch_p / total_samples:.3f}, Recall: {epoch_r / total_samples:.3f}, F1: {epoch_f1 / total_samples:.3f}")
