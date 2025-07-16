@@ -18,7 +18,7 @@ class RuCoCoDataset(Dataset):
 
         for i, (start, end) in enumerate(offset_mapping):
             if start == end == 0:
-                continue # skipping paddings tokens
+                continue # скип спешл токенов
 
             if token_start is None and start <= start_char < end:
                 token_start = i
@@ -26,7 +26,7 @@ class RuCoCoDataset(Dataset):
             if start < end_char <= end:
                 token_end = i
 
-        # if end has not been found but start has been - looking for closest right end
+        # если token end не был найден, но token_start был - ищем ближайший правый конец
         if token_start is not None and token_end is None:
             for i in reversed(range(len(offset_mapping))):
                 s, e = offset_mapping[i]
@@ -72,7 +72,7 @@ class RuCoCoDataset(Dataset):
                     mentions.append((token_start, token_end))
                     mention_to_cluster.append(cluster_idx)
 
-        # antecedents for each mention
+        # антеценденты для каждого упоминания
         max_antecedents = 50
         antecedent_indices = []
         antecedent_labels = []

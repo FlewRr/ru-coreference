@@ -60,7 +60,6 @@ def run_inference(text, model, tokenizer, device, threshold=0.5):
         threshold=threshold
     )
 
-    # Reconstruct span texts from clusters
     result_clusters = []
     for cluster in pred_clusters:
         cluster_texts = reconstruct_text_spans(cluster, offset_mapping, text)
@@ -74,18 +73,15 @@ def main():
     parser.add_argument('--text_path', type=str, required=True, help='Path to input .txt file')
     args = parser.parse_args()
 
-    # Load text
     with open(args.text_path, 'r', encoding='utf-8') as f:
         text = f.read()
 
-    # Initialize tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/rubert-base-cased")
     model = SpanBert()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Load checkpoint if provided
     if args.checkpoint_path:
         checkpoint = torch.load(args.checkpoint_path, map_location=device)
         model.load_state_dict(checkpoint)

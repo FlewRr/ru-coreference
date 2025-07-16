@@ -14,7 +14,7 @@ def get_predicted_clusters(span_starts, span_ends, pairwise_scores, threshold=0.
     num_spans = len(span_starts)
     antecedents = [-1] * num_spans
 
-    # шаг 1: выбираем лучшего антецедента для каждого спана
+    # выбираем лучшего антецедента для каждого спана
     for i in range(num_spans):
         candidates = [(j, pairwise_scores[i, j].item()) for j in range(i)]
         if candidates:
@@ -22,7 +22,7 @@ def get_predicted_clusters(span_starts, span_ends, pairwise_scores, threshold=0.
             if best_score > threshold:
                 antecedents[i] = best_j
 
-    # шаг 2: собираем кластеры
+    # собираем кластеры
     clusters = []
     span_to_cluster = {}
 

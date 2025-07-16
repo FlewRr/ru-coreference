@@ -1,21 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-
-# вроде рабочий лосс но с for лупом внутри
-# def coref_loss(mention_scores, antecedent_scores, gold_antecedents):
-#     loss = 0
-#     batch_size = mention_scores.size(0)
-#
-#     for b in range(batch_size):
-#         for i, gold_ante in enumerate(gold_antecedents[b]):
-#             scores = torch.cat([torch.tensor([0.0], device=antecedent_scores.device), antecedent_scores[b, i]])
-#             gold_index = 0 if gold_ante == -1 else gold_ante + 1
-#             loss += -F.log_softmax(scores, dim=0)[gold_index]
-#     return loss / batch_size
-
-# матричная версия, но ее надо перепроверить и протестировать
-def coref_loss(mention_scores, antecedent_scores, gold_antecedents):
+def coref_loss(antecedent_scores, gold_antecedents):
 
     batch_size, num_mentions, max_antecedents = antecedent_scores.shape
     null_scores = torch.zeros(batch_size, num_mentions, 1, device=antecedent_scores.device)
@@ -33,7 +19,7 @@ def coref_loss(mention_scores, antecedent_scores, gold_antecedents):
 
 def get_gold_antecedents(topk_indices, mention_to_cluster):
     """
-    topk_indices: List[int] — индексы топ-K меншионов (в оригинальном списке)
+    topk_indices: List[int] — индексы топ-K меншионов
     mention_to_cluster: List[int] — соответствие всех меншионов кластерам
     Возвращает List[int] — индекс антецедента из topk_indices для каждого меншиона, или -1 если нет
     """

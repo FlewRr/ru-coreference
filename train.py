@@ -103,7 +103,6 @@ def train(config_path):
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                 loss = coref_loss(
-                    mention_scores.unsqueeze(0),
                     antecedent_scores.unsqueeze(0),
                     gold_antecedents
                 )
