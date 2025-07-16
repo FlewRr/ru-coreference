@@ -1,16 +1,16 @@
+import argparse
+import json
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 from utils import coref_loss, get_gold_antecedents
 from dataset import collate_fn, RuCoCoDataset
 from model import SpanBert
 from clusters import get_predicted_clusters
-from tqdm import tqdm
+
 
 def get_gold_clusters(mentions, mention_to_cluster):
-    """
-    mentions: List[Tuple[int, int]]
-    mention_to_cluster: List[int]
-    """
     cluster_map = {}
     for mention, cluster_id in zip(mentions, mention_to_cluster):
         if cluster_id not in cluster_map:
@@ -20,10 +20,6 @@ def get_gold_clusters(mentions, mention_to_cluster):
 
 
 def extract_coref_links(clusters):
-    """
-    clusters: List[List[Tuple[int, int]]]
-    Возвращает set пар (a, b) для всех coreferent пар (упорядоченных)
-    """
     links = set()
     for cluster in clusters:
         for i in range(len(cluster)):
@@ -46,27 +42,30 @@ def coref_metrics(pred_clusters, gold_clusters):
 
     return precision, recall, f1
 
-if __name__ == "__main__":
-    dataset = RuCoCoDataset(data_dir="RuCoCo")
-    dataloader = DataLoader(dataset, batch_size=8, collate_fn=collate_fn, shuffle=True)
+
+def train(config_path):
+    with open(config_path) as f:
+        config = json.load(f)
+
+    dataset = RuCoCoDataset(data_dir=config["data_dir"])
+    dataloader = DataLoader(
+        dataset,
+        batch_size=config["batch_size"],
+        collate_fn=collate_fn,
+        shuffle=True,
+    )
 
     model = SpanBert()
-    optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     model.train()
-    for epoch in range(3):
-        epoch_loss = 0.0
-        total_batches = 0
+    for epoch in range(config["epochs"]):
+        epoch_losses = []
+        all_precisions, all_recalls, all_f1s = [], [], []
 
-        epoch_p = 0.0
-        epoch_r = 0.0
-        epoch_f1 = 0.0
-        total_samples = 0
-
-        loop = tqdm(dataloader, desc=f"Epoch {epoch} Training", leave=True)
-        for batch in loop:
+        for batch in tqdm(dataloader, desc=f"Epoch {epoch}"):
             optimizer.zero_grad()
 
             input_ids = batch['input_ids'].to(device)
@@ -112,9 +111,7 @@ if __name__ == "__main__":
             loss = torch.stack(losses).mean()
             loss.backward()
             optimizer.step()
-
-            epoch_loss += loss.item()
-            total_batches += 1
+            epoch_losses.append(loss.item())
 
             with torch.no_grad():
                 for b in range(batch_size):
@@ -126,15 +123,20 @@ if __name__ == "__main__":
                     gold_clusters = get_gold_clusters(batch['mentions'][b], batch['mention_to_cluster'][b])
 
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
-                    epoch_p += p
-                    epoch_r += r
-                    epoch_f1 += f1
-                    total_samples += 1
+                    all_precisions.append(p)
+                    all_recalls.append(r)
+                    all_f1s.append(f1)
 
-            loop.set_postfix(loss=epoch_loss / total_batches,
-                             precision=epoch_p / total_samples if total_samples else 0,
-                             recall=epoch_r / total_samples if total_samples else 0,
-                             f1=epoch_f1 / total_samples if total_samples else 0)
+        avg_loss = sum(epoch_losses) / len(epoch_losses)
+        avg_precision = sum(all_precisions) / len(all_precisions)
+        avg_recall = sum(all_recalls) / len(all_recalls)
+        avg_f1 = sum(all_f1s) / len(all_f1s)
 
-        print(f"\nEpoch {epoch} Mean Loss: {epoch_loss / total_batches:.4f}")
-        print(f"Epoch {epoch} Mean Precision: {epoch_p / total_samples:.3f}, Recall: {epoch_r / total_samples:.3f}, F1: {epoch_f1 / total_samples:.3f}")
+        print(f"\n[Epoch {epoch}] Loss={avg_loss:.4f}, P={avg_precision:.3f}, R={avg_recall:.3f}, F1={avg_f1:.3f}\n")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True, help="Path to config.json")
+    args = parser.parse_args()
+    train(args.config)
