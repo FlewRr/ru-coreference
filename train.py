@@ -64,8 +64,9 @@ def train(config_path):
     for epoch in range(config["epochs"]):
         epoch_losses = []
         all_precisions, all_recalls, all_f1s = [], [], []
+        pbar = tqdm(dataloader, desc=f"Epoch {epoch}", dynamic_ncols=True)
 
-        for batch in tqdm(dataloader, desc=f"Epoch {epoch}"):
+        for batch in pbar:
             optimizer.zero_grad()
 
             input_ids = batch['input_ids'].to(device)

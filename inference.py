@@ -4,109 +4,97 @@ from transformers import AutoTokenizer
 from model import SpanBert
 from clusters import get_predicted_clusters
 
-class InferenceDataset(torch.utils.data.Dataset):
-    def __init__(self, text: str, tokenizer, max_length=512):
-        self.text = text
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.encoding = tokenizer(
-            text,
-            return_offsets_mapping=True,
-            max_length=max_length,
-            truncation=True,
-            padding='max_length',
-            return_tensors='pt'
-        )
-        self.offset_mapping = self.encoding['offset_mapping'].squeeze(0).tolist()
+def get_spans(offset_mapping, max_span_width=10):
+    spans = []
+    for start in range(len(offset_mapping)):
+        for end in range(start, min(start + max_span_width, len(offset_mapping))):
+            if offset_mapping[start] is None or offset_mapping[end] is None:
+                continue
+            spans.append((start, end))
+    return spans
 
-    def _char_to_token_span(self, start_char, end_char):
-        for idx, (start, end) in enumerate(self.offset_mapping):
-            if start <= start_char < end and end_char <= end:
-                return idx, idx
-            elif start_char >= start and end_char <= end:
-                return idx, idx
-            elif start <= start_char < end_char <= end:
-                return idx, idx
-        return None, None
+def reconstruct_text_spans(span_indices, offset_mapping, original_text):
+    span_texts = []
+    for start_idx, end_idx in span_indices:
+        start_char = offset_mapping[start_idx][0]
+        end_char = offset_mapping[end_idx][1]
+        span_texts.append(original_text[start_char:end_char])
+    return span_texts
 
-    def __len__(self):
-        return 1
+def run_inference(text, model, tokenizer, device, threshold=0.5):
+    encoded = tokenizer(
+        text,
+        return_offsets_mapping=True,
+        return_tensors='pt',
+        max_length=512,
+        truncation=True,
+        padding='max_length'
+    )
 
-    def __getitem__(self, idx):
-        input_ids = self.encoding['input_ids'].squeeze(0)
-        attention_mask = self.encoding['attention_mask'].squeeze(0)
+    input_ids = encoded['input_ids'].to(device)
+    attention_mask = encoded['attention_mask'].to(device)
+    offset_mapping = encoded['offset_mapping'][0].tolist()
 
-        # Dummy mentions for demonstration purposes — in practice you may run mention detection
-        # Here we assume every 2-token window might be a mention (you can use your training logic)
-        mention_spans = []
-        for i in range(len(input_ids) - 1):
-            mention_spans.append((i, i + 1))
+    offset_mapping = [
+        (start, end) if start != end else None
+        for start, end in offset_mapping
+    ]
 
-        return {
-            'input_ids': input_ids,
-            'attention_mask': attention_mask,
-            'mentions': mention_spans,
-            'text': self.text
-        }
+    spans = get_spans(offset_mapping)
+    span_starts = [s for s, e in spans]
+    span_ends = [e for s, e in spans]
 
-def collate_fn(batch):
-    return {
-        'input_ids': torch.stack([item['input_ids'] for item in batch]),
-        'attention_mask': torch.stack([item['attention_mask'] for item in batch]),
-        'mentions': [item['mentions'] for item in batch],
-        'text': [item['text'] for item in batch],
-    }
-
-
-def main(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/rubert-base-cased")
-    with open(args.input_txt, 'r', encoding='utf-8') as f:
-        text = f.read().strip()
-
-    dataset = InferenceDataset(text, tokenizer)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, collate_fn=collate_fn)
-
-    model = SpanBert()
-    if args.checkpoint_path:
-        print(f"Loading model from {args.checkpoint_path}")
-        model.load_state_dict(torch.load(args.checkpoint_path, map_location=device))
-    else:
-        print("No checkpoint provided, using randomly initialized model.")
-
-    model.to(device)
     model.eval()
-
     with torch.no_grad():
-        for batch in dataloader:
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            mentions = batch['mentions'][0]
-            span_starts = [s for s, e in mentions]
-            span_ends = [e for s, e in mentions]
+        mention_scores, antecedent_scores, span_starts_out, span_ends_out = model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            span_starts=[span_starts],
+            span_ends=[span_ends],
+        )
 
-            mention_scores_batch, antecedent_scores_batch, filtered_starts, filtered_ends = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                span_starts=[span_starts],
-                span_ends=[span_ends],
-            )
+    pred_clusters = get_predicted_clusters(
+        span_starts_out[0],
+        span_ends_out[0],
+        antecedent_scores[0],
+        threshold=threshold
+    )
 
-            span_starts = filtered_starts[0]
-            span_ends = filtered_ends[0]
-            pairwise_scores = antecedent_scores_batch[0]
+    # Reconstruct span texts from clusters
+    result_clusters = []
+    for cluster in pred_clusters:
+        cluster_texts = reconstruct_text_spans(cluster, offset_mapping, text)
+        result_clusters.append(cluster_texts)
 
-            clusters = get_predicted_clusters(span_starts, span_ends, pairwise_scores, threshold=0.5)
+    return result_clusters
 
-            print("\nPredicted coreference clusters:")
-            for i, cluster in enumerate(clusters):
-                print(f"Cluster {i + 1}: {[text[token_start:token_end+1] for token_start, token_end in cluster]}")
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--checkpoint_path', type=str, default=None, help='Path to model checkpoint (.pt)')
+    parser.add_argument('--text_path', type=str, required=True, help='Path to input .txt file')
+    args = parser.parse_args()
 
+    # Load text
+    with open(args.text_path, 'r', encoding='utf-8') as f:
+        text = f.read()
+
+    # Initialize tokenizer and model
+    tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/rubert-base-cased")
+    model = SpanBert()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    # Load checkpoint if provided
+    if args.checkpoint_path:
+        checkpoint = torch.load(args.checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint)
+
+    clusters = run_inference(text, model, tokenizer, device)
+
+    print("\n=== Coreference Clusters ===")
+    for i, cluster in enumerate(clusters, 1):
+        print(f"Cluster {i}: {cluster}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_txt", type=str, required=True, help="Path to .txt file with input text")
-    parser.add_argument("--checkpoint_path", type=str, default=None, help="Path to model checkpoint (.pt)")
-    args = parser.parse_args()
-    main(args)
+    main()
