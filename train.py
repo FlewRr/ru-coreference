@@ -104,7 +104,10 @@ if __name__ == "__main__":
                 gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                loss = coref_loss(mention_scores.unsqueeze(0), antecedent_scores.unsqueeze(0), gold_antecedents)
+                loss = coref_loss(
+                    antecedent_scores.unsqueeze(0),
+                    gold_antecedents
+                )
                 losses.append(loss)
 
             loss = torch.stack(losses).mean()
@@ -148,7 +151,10 @@ if __name__ == "__main__":
                     gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                    loss = coref_loss(mention_scores.unsqueeze(0), antecedent_scores.unsqueeze(0), gold_antecedents)
+                    loss = coref_loss(
+                        antecedent_scores.unsqueeze(0),
+                        gold_antecedents
+                    )
                     val_losses.append(loss.item())
 
                     pred_clusters = get_predicted_clusters(span_starts, span_ends, antecedent_scores, threshold=0.5)
