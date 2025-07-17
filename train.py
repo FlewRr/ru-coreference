@@ -74,7 +74,7 @@ if __name__ == "__main__":
     model.train()
     for epoch in range(epochs):
         total_train_loss = 0
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch}", dynamic_ncols=True)
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch}", dynamic_ncols=True, leave=True)
         for batch in pbar:
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(device)
