@@ -30,25 +30,6 @@ class SpanRepresentation(nn.Module):
         span_repr = self.output_layer(span_embedding)  # (batch, num_spans, hidden_size)
         return span_repr
 
-# class PairwiseScorer(nn.Module):
-#     def __init__(self, input_dim: int):
-#         super().__init__()
-#         self.scorer = nn.Bilinear(input_dim, input_dim, 1)
-#
-#     def forward(self, span1: torch.FloatTensor, span2: torch.FloatTensor):
-#         return self.scorer(span1, span2).squeeze(-1)
-#
-# class MentionScorer(nn.Module):
-#     def __init__(self, hidden_size: int, max_span_width: int = 10):
-#         super().__init__()
-#         self.span_repr = SpanRepresentation(hidden_size, max_span_width)
-#         self.mention_scorer = nn.Linear(hidden_size, 1)
-#
-#     def forward(self, sequence_output, span_starts, span_ends):
-#         span_emb = self.span_repr(sequence_output, span_starts, span_ends)
-#         scores = self.mention_scorer(span_emb).squeeze(-1)
-#         return scores
-
 class PairwiseScorer(nn.Module):
     def __init__(self, input_dim: int):
         super().__init__()
@@ -80,6 +61,17 @@ class PairwiseScorer(nn.Module):
                 pairwise_scores[i, j] = scores[idx]
                 idx += 1
         return pairwise_scores
+
+class MentionScorer(nn.Module):
+    def __init__(self, hidden_size: int, max_span_width: int = 10):
+        super().__init__()
+        self.span_repr = SpanRepresentation(hidden_size, max_span_width)
+        self.mention_scorer = nn.Linear(hidden_size, 1)
+
+    def forward(self, sequence_output, span_starts, span_ends):
+        span_emb = self.span_repr(sequence_output, span_starts, span_ends)
+        scores = self.mention_scorer(span_emb).squeeze(-1)
+        return scores
 
 class SpanBert(nn.Module):
     def __init__(self, model_name="DeepPavlov/rubert-base-cased", max_span_width=10, top_k: int=10):
