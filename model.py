@@ -30,37 +30,13 @@ class SpanRepresentation(nn.Module):
         span_repr = self.output_layer(span_embedding)  # (batch, num_spans, hidden_size)
         return span_repr
 
-class PairwiseScorer(nn.Module):
-    def __init__(self, input_dim: int):
-        super().__init__()
-        self.ffn = nn.Sequential(
-            nn.Linear(input_dim * 3, input_dim),
-            nn.ReLU(),
-            nn.Linear(input_dim, 1)
-        )
+    class PairwiseScorer(nn.Module):
+        def __init__(self, input_dim: int):
+            super().__init__()
+            self.scorer = nn.Bilinear(input_dim, input_dim, 1)
 
-    def forward(self, span_repr, antecedents_repr):
-        # span_repr: (k, h), antecedents_repr: (k, h)
-        k = span_repr.size(0)
-        pairs = []
-        for i in range(k):
-            for j in range(i):
-                pair = torch.cat([
-                    span_repr[i],                     # span i
-                    antecedents_repr[j],             # antecedent j
-                    span_repr[i] - antecedents_repr[j]  # diff
-                ])
-                pairs.append(pair)
-        if not pairs:
-            return torch.zeros((k, k), device=span_repr.device)
-        scores = self.ffn(torch.stack(pairs))
-        pairwise_scores = torch.zeros((k, k), device=span_repr.device)
-        idx = 0
-        for i in range(k):
-            for j in range(i):
-                pairwise_scores[i, j] = scores[idx]
-                idx += 1
-        return pairwise_scores
+        def forward(self, span1: torch.FloatTensor, span2: torch.FloatTensor):
+            return self.scorer(span1, span2).squeeze(-1)
 
 class MentionScorer(nn.Module):
     def __init__(self, hidden_size: int, max_span_width: int = 10):
@@ -123,15 +99,13 @@ class SpanBert(nn.Module):
                                                  span_ends_tensor).squeeze(0)  # (num_spans,)
 
             span_repr = self.mention_scorer.span_repr(sequence_output[b:b + 1], span_starts_tensor,
-                                                      span_ends_tensor)[0]  # (num_spans, hidden)
+                                                      span_ends_tensor).squeeze(0)  # (num_spans, hidden)
 
             n = span_repr.size(0)
             pairwise_scores = torch.zeros((n, n), device=device)
             for i in range(n):
                 for j in range(i):
-                    span_i = span_repr[i].unsqueeze(0) if span_repr[i].dim() == 0 else span_repr[i]
-                    span_j = span_repr[j].unsqueeze(0) if span_repr[j].dim() == 0 else span_repr[j]
-                    pairwise_scores[i, j] = self.pairwise_scorer(span_i, span_j)
+                    pairwise_scores[i, j] = self.pairwise_scorer(span_repr[i], span_repr[j])
 
             all_mention_scores.append(mention_scores)
             all_pairwise_scores.append(pairwise_scores)
