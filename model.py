@@ -31,12 +31,24 @@ class SpanRepresentation(nn.Module):
         return span_repr
 
 class PairwiseScorer(nn.Module):
-    def __init__(self, input_dim: int):
+    def __init__(self, input_dim: int, hidden_dim: int = 150):
         super().__init__()
-        self.scorer = nn.Bilinear(input_dim, input_dim, 1)
+        self.ff = nn.Sequential(
+            nn.Linear(input_dim * 4, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
 
-    def forward(self, span1: torch.FloatTensor, span2: torch.FloatTensor):
-        return self.scorer(span1, span2).squeeze(-1)
+    def forward(self, span1: torch.Tensor, span2: torch.Tensor):
+        # span1, span2 shape: (hidden_dim,)
+        features = torch.cat([
+            span1,
+            span2,
+            span1 - span2,
+            span1 * span2
+        ], dim=-1)  # размерность 4*input_dim
+        score = self.ff(features)  # размерность (1)
+        return score.squeeze(-1)
 
 class MentionScorer(nn.Module):
     def __init__(self, hidden_size: int, max_span_width: int = 10):
