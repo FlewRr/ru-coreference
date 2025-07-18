@@ -30,13 +30,13 @@ class SpanRepresentation(nn.Module):
         span_repr = self.output_layer(span_embedding)  # (batch, num_spans, hidden_size)
         return span_repr
 
-    class PairwiseScorer(nn.Module):
-        def __init__(self, input_dim: int):
-            super().__init__()
-            self.scorer = nn.Bilinear(input_dim, input_dim, 1)
+class PairwiseScorer(nn.Module):
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.scorer = nn.Bilinear(input_dim, input_dim, 1)
 
-        def forward(self, span1: torch.FloatTensor, span2: torch.FloatTensor):
-            return self.scorer(span1, span2).squeeze(-1)
+    def forward(self, span1: torch.FloatTensor, span2: torch.FloatTensor):
+        return self.scorer(span1, span2).squeeze(-1)
 
 class MentionScorer(nn.Module):
     def __init__(self, hidden_size: int, max_span_width: int = 10):
