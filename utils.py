@@ -37,6 +37,7 @@ def get_gold_antecedents(topk_indices, mention_to_cluster):
         if not found:
             gold_antecedents.append(-1)
 
+    print("Gold antecedents:", gold_antecedents)
     return gold_antecedents
 
 # для каждого mention [i] - берем правильный антецедент gold_ante

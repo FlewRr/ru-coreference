@@ -34,10 +34,8 @@ class PairwiseScorer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 150, dropout: float = 0.3):
         super().__init__()
         self.ff = nn.Sequential(
-            nn.LayerNorm(input_dim * 4),
             nn.Linear(input_dim * 4, hidden_dim),
             nn.ReLU(),
-            nn.Dropout(dropout),
             nn.Linear(hidden_dim, 1)
         )
 
