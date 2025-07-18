@@ -67,15 +67,17 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=eval_batch_size, collate_fn=collate_fn, shuffle=False)
 
     model = SpanBert()
-    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
+    for param in model.bert.parameters():
+        param.requires_grad = False
     # TO DELETE
-    optimizer = torch.optim.Adam([
-        {"params": model.bert.parameters(), "lr": 2e-5},
-        {"params": model.mention_scorer.parameters(), "lr": 2e-4},
-        {"params": model.pairwise_scorer.parameters(), "lr": 2e-4}
-    ])
+    # optimizer = torch.optim.Adam([
+    #     {"params": model.bert.parameters(), "lr": 2e-5},
+    #     {"params": model.mention_scorer.parameters(), "lr": 2e-4},
+    #     {"params": model.pairwise_scorer.parameters(), "lr": 2e-4}
+    # ])
     ## TO DELETE
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -112,7 +114,14 @@ if __name__ == "__main__":
                 antecedent_scores = antecedent_scores_batch[b]
                 mention_to_cluster = mention_to_cluster_batch[b]
                 filtered_indices = list(range(len(mention_scores)))
-                gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
+                # gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
+                gold_antecedents = get_gold_antecedents(
+                    topk_indices=filtered_indices,
+                    mention_to_cluster=mention_to_cluster,
+                    all_mentions=batch['mentions'][b],
+                    input_ids=input_ids[b],
+                    tokenizer=dataset.tokenizer  # или где он у тебя
+                )
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                 loss = coref_loss(
@@ -160,7 +169,14 @@ if __name__ == "__main__":
                     span_ends = filtered_span_ends_batch[b]
                     mention_to_cluster = mention_to_cluster_batch[b]
                     filtered_indices = list(range(len(mention_scores)))
-                    gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
+                    # gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
+                    gold_antecedents = get_gold_antecedents(
+                        topk_indices=filtered_indices,
+                        mention_to_cluster=mention_to_cluster,
+                        all_mentions=batch['mentions'][b],
+                        input_ids=input_ids[b],
+                        tokenizer=dataset.tokenizer  # или где он у тебя
+                    )
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                     loss = coref_loss(
