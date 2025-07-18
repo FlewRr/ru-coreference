@@ -55,6 +55,7 @@ def run_inference(text, model, tokenizer, device, threshold=0.7, top_k=30):  # �
             attention_mask=attention_mask,
             span_starts=[span_starts],
             span_ends=[span_ends],
+            top_k=30
         )
 
     # ✅ ИЗМЕНЕНИЕ: добавлена фильтрация по top_k упорядоченным mention_scores
