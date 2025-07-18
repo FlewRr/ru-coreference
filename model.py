@@ -129,7 +129,9 @@ class SpanBert(nn.Module):
             pairwise_scores = torch.zeros((n, n), device=device)
             for i in range(n):
                 for j in range(i):
-                    pairwise_scores[i, j] = self.pairwise_scorer(span_repr[i], span_repr[j])
+                    span_i = span_repr[i].unsqueeze(0) if span_repr[i].dim() == 0 else span_repr[i]
+                    span_j = span_repr[j].unsqueeze(0) if span_repr[j].dim() == 0 else span_repr[j]
+                    pairwise_scores[i, j] = self.pairwise_scorer(span_i, span_j)
 
             all_mention_scores.append(mention_scores)
             all_pairwise_scores.append(pairwise_scores)
