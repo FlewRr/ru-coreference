@@ -67,7 +67,16 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=eval_batch_size, collate_fn=collate_fn, shuffle=False)
 
     model = SpanBert()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    # TO DELETE
+    optimizer = torch.optim.Adam([
+        {"params": model.bert.parameters(), "lr": 2e-5},
+        {"params": model.mention_scorer.parameters(), "lr": 2e-4},
+        {"params": model.pairwise_scorer.parameters(), "lr": 2e-4}
+    ])
+    ## TO DELETE
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
