@@ -123,7 +123,7 @@ class SpanBert(nn.Module):
                                                  span_ends_tensor).squeeze(0)  # (num_spans,)
 
             span_repr = self.mention_scorer.span_repr(sequence_output[b:b + 1], span_starts_tensor,
-                                                      span_ends_tensor).squeeze(0)  # (num_spans, hidden)
+                                                      span_ends_tensor)[0]  # (num_spans, hidden)
 
             n = span_repr.size(0)
             pairwise_scores = torch.zeros((n, n), device=device)
