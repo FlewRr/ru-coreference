@@ -161,6 +161,7 @@ if __name__ == "__main__":
                     val_losses.append(loss.item())
 
                     pred_clusters = get_predicted_clusters(span_starts, span_ends, antecedent_scores, threshold=0.5)
+                    pred_clusters = [c for c in pred_clusters if len(c) > 1]
                     gold_clusters = get_gold_clusters(batch['mentions'][b], batch['mention_to_cluster'][b])
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
                     all_precisions.append(p)
