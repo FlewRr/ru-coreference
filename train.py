@@ -44,10 +44,11 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == "__main__":
-    args = parse_args()
-    with open(args.config_path) as f:
-        config = json.load(f)
+    # args = parse_args()
+    # with open(args.config_path) as f:
+    #     config = json.load(f)
 
+    config = json.load(open("config.json"))
     lr = config.get("lr", 3e-5)
     epochs = config.get("epochs", 3)
     train_batch_size = config.get("train_batch_size", 2)
@@ -71,8 +72,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    model.train()
     for epoch in range(epochs):
+        model.train()
         total_train_loss = 0
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}", dynamic_ncols=True, leave=True)
         for batch in pbar:
@@ -93,6 +94,7 @@ if __name__ == "__main__":
                 attention_mask=attention_mask,
                 span_starts=batch_span_starts,
                 span_ends=batch_span_ends,
+                top_k=30
             )
 
             losses = []
@@ -140,6 +142,7 @@ if __name__ == "__main__":
                     attention_mask=attention_mask,
                     span_starts=batch_span_starts,
                     span_ends=batch_span_ends,
+                    top_k=30
                 )
 
                 for b in range(len(mention_scores_batch)):
@@ -170,7 +173,6 @@ if __name__ == "__main__":
         avg_r = sum(all_recalls) / len(all_recalls)
         avg_f1 = sum(all_f1s) / len(all_f1s)
         print(f"[Validation Epoch {epoch}] Loss: {avg_val_loss:.4f}, P: {avg_p:.3f}, R: {avg_r:.3f}, F1: {avg_f1:.3f}")
-        model.train()
 
         if (epoch + 1) % save_every == 0:
             ckpt_path = os.path.join(save_path, f"model_epoch_{epoch+1}.pt")

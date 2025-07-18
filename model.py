@@ -31,11 +31,13 @@ class SpanRepresentation(nn.Module):
         return span_repr
 
 class PairwiseScorer(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int = 150):
+    def __init__(self, input_dim: int, hidden_dim: int = 150, dropout: float = 0.3):
         super().__init__()
         self.ff = nn.Sequential(
+            nn.LayerNorm(input_dim * 4),
             nn.Linear(input_dim * 4, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(hidden_dim, 1)
         )
 
@@ -77,6 +79,7 @@ class SpanBert(nn.Module):
             attention_mask: torch.Tensor,
             span_starts: list[list[int]],
             span_ends: list[list[int]],
+            top_k: int
     ):
         batch_size = input_ids.size(0)
         device = input_ids.device
@@ -101,17 +104,24 @@ class SpanBert(nn.Module):
             filtered_starts = starts
             filtered_ends = ends
 
-            filtered_span_starts_batch.append(filtered_starts)
-            filtered_span_ends_batch.append(filtered_ends)
-
-            span_starts_tensor = torch.tensor(filtered_starts, device=device).unsqueeze(0)  # (1, num_spans)
-            span_ends_tensor = torch.tensor(filtered_ends, device=device).unsqueeze(0)  # (1, num_spans)
+            span_starts_tensor = torch.tensor(filtered_starts, device=device).unsqueeze(0)
+            span_ends_tensor = torch.tensor(filtered_ends, device=device).unsqueeze(0)
 
             mention_scores = self.mention_scorer(sequence_output[b:b + 1], span_starts_tensor,
-                                                 span_ends_tensor).squeeze(0)  # (num_spans,)
-
+                                                 span_ends_tensor).squeeze(0)
             span_repr = self.mention_scorer.span_repr(sequence_output[b:b + 1], span_starts_tensor,
-                                                      span_ends_tensor).squeeze(0)  # (num_spans, hidden)
+                                                      span_ends_tensor).squeeze(0)
+
+            if top_k is not None and top_k < len(mention_scores):
+                top_k = min(top_k, len(mention_scores))
+                top_indices = torch.topk(mention_scores, k=top_k).indices
+                span_repr = span_repr[top_indices]
+                mention_scores = mention_scores[top_indices]
+                filtered_starts = [filtered_starts[i] for i in top_indices]
+                filtered_ends = [filtered_ends[i] for i in top_indices]
+
+            filtered_span_starts_batch.append(filtered_starts)
+            filtered_span_ends_batch.append(filtered_ends)
 
             n = span_repr.size(0)
             pairwise_scores = torch.zeros((n, n), device=device)

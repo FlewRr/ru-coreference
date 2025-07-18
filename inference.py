@@ -24,7 +24,7 @@ def reconstruct_text_spans(span_indices, offset_mapping, original_text):
     return span_texts
 
 
-def run_inference(text, model, tokenizer, device, threshold=0.5, top_k=30):  # ✅ ИЗМЕНЕНИЕ: добавлен top_k
+def run_inference(text, model, tokenizer, device, threshold=0.7, top_k=30):  # ✅ ИЗМЕНЕНИЕ: добавлен top_k
     encoded = tokenizer(
         text,
         return_offsets_mapping=True,
