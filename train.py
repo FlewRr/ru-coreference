@@ -44,11 +44,10 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == "__main__":
-    # args = parse_args()
-    # with open(args.config_path) as f:
-    #     config = json.load(f)
+    args = parse_args()
+    with open(args.config_path) as f:
+        config = json.load(f)
 
-    config = json.load(open("config.json"))
     lr = config.get("lr", 3e-5)
     epochs = config.get("epochs", 3)
     train_batch_size = config.get("train_batch_size", 2)
