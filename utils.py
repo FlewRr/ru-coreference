@@ -97,7 +97,8 @@ def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx
 
     mention_scores = mention_scores.detach().cpu().numpy()
     pairwise_scores = pairwise_scores.detach().cpu().numpy()
-
+    print(mention_scores)
+    print(pairwise_scores)
     plt.figure(figsize=(12, 5))
 
     plt.subplot(1, 2, 1)
