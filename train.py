@@ -77,8 +77,8 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.AdamW([
         {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 2e-5},
-        {"params": model.mention_scorer.parameters(), "lr": 2e-4},
-        {"params": model.pairwise_scorer.parameters(), "lr": 2e-4},
+        {"params": model.mention_scorer.parameters(), "lr": 5e-4},
+        {"params": model.pairwise_scorer.parameters(), "lr": 5e-4},
     ], weight_decay=0.01)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,7 +133,12 @@ if __name__ == "__main__":
                     dtype=torch.float, device=device
                 )
 
-                gold_antecedents = get_gold_antecedents(list(range(len(mention_scores))), mention_to_cluster)
+                span_to_cluster = {
+                    (start, end): cluster_id
+                    for (start, end), cluster_id in zip(mention_spans, mention_clusters)
+                }
+                filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
+                gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
@@ -144,6 +149,7 @@ if __name__ == "__main__":
             loss = torch.stack(losses).mean()
             total_train_loss += loss.item()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
 
         print(f"Epoch {epoch}: Avg Train Loss = {total_train_loss / len(train_loader):.4f}")
