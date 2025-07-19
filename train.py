@@ -154,7 +154,9 @@ if __name__ == "__main__":
 
                     # Проверяем что gold_antecedents в допустимом диапазоне индексов
                     max_antecedent_idx = antecedent_scores.shape[1]  # количество кандидатов
-                    invalid_ants = [ant for ant in gold_antecedents if ant >= max_antecedent_idx]
+                    gold_antecedents_list = gold_antecedents.squeeze(
+                        0).tolist()  # убираем размер батча и превращаем в список
+                    invalid_ants = [ant for ant in gold_antecedents_list if ant >= max_antecedent_idx]
                     if invalid_ants:
                         print(f"[WARNING] Some gold antecedents indices ({invalid_ants}) >= max antecedents ({max_antecedent_idx})")
 
