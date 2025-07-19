@@ -2,7 +2,7 @@ import os
 import json
 import torch
 from torch.utils.data import DataLoader, random_split
-import torch.nn.functionas as F
+import torch.nn.functional as F
 from tqdm import tqdm
 from utils import coref_loss, get_gold_antecedents, visualize_scores_save
 from dataset import collate_fn, RuCoCoDataset
