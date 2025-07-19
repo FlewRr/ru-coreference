@@ -141,24 +141,11 @@ if __name__ == "__main__":
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                if batch_idx == 0 and b == 0:  # пример первого батча и первого элемента для отладки
-                    print("\n[DEBUG] TRAIN batch 0, element 0:")
-                    print(f"mention_spans (len={len(mention_spans)}): {mention_spans[:5]} ...")
-                    print(f"mention_clusters (len={len(mention_clusters)}): {mention_clusters[:5]} ...")
-                    print(f"filtered_spans (len={len(filtered_spans)}): {filtered_spans[:5]} ...")
-                    print(f"filtered_clusters (len={len(filtered_clusters)}): {filtered_clusters[:5]} ...")
-                    print(f"gold_antecedents sample: {gold_antecedents[:10]}")
-                    print(f"mention_scores shape: {mention_scores.shape}")
-                    print(f"antecedent_scores shape: {antecedent_scores.shape}")
-                    print(f"mention_labels shape: {mention_labels.shape}")
+                probs = torch.sigmoid(mention_scores)
+                print("mention_scores logits:", probs[:10].detach().cpu().numpy().round(3))
 
-                    # Проверяем что gold_antecedents в допустимом диапазоне индексов
-                    max_antecedent_idx = antecedent_scores.shape[1]  # количество кандидатов
-                    gold_antecedents_list = gold_antecedents.squeeze(
-                        0).tolist()  # убираем размер батча и превращаем в список
-                    invalid_ants = [ant for ant in gold_antecedents_list if ant >= max_antecedent_idx]
-                    if invalid_ants:
-                        print(f"[WARNING] Some gold antecedents indices ({invalid_ants}) >= max antecedents ({max_antecedent_idx})")
+                probs_antecedent = torch.sigmoid(antecedent_scores)
+                print("antecendent_scores logits:", probs_antecedent[:10].detach().cpu().numpy().round(3))
 
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                 reg_loss = 0.01 * torch.norm(mention_scores, p=2)
