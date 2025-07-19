@@ -56,6 +56,8 @@ if __name__ == "__main__":
     save_every = config.get("save_every", 1)
     save_path = config.get("save_path", "checkpoints")
     data_dir = config.get("data_dir", "RuCoCo")
+    threshold = config.get("threshold", 0.8)
+    top_k = config.get("top_k", 50)
 
     os.makedirs(save_path, exist_ok=True)
 
@@ -69,16 +71,15 @@ if __name__ == "__main__":
 
     model = SpanBert()
 
-    for param in model.bert.parameters():
-        param.requires_grad = False
-    # TO DELETE
-    # optimizer = torch.optim.Adam([
-    #     {"params": model.bert.parameters(), "lr": 2e-5},
-    #     {"params": model.mention_scorer.parameters(), "lr": 2e-4},
-    #     {"params": model.pairwise_scorer.parameters(), "lr": 2e-4}
-    # ])
-    ## TO DELETE
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    # Разморозим последний слой BERT
+    for name, param in model.bert.named_parameters():
+        param.requires_grad = name.startswith("encoder.layer.11") or name.startswith("pooler")
+
+    optimizer = torch.optim.AdamW([
+        {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 2e-5},
+        {"params": model.mention_scorer.parameters(), "lr": 2e-4},
+        {"params": model.pairwise_scorer.parameters(), "lr": 2e-4},
+    ], weight_decay=0.01)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -105,7 +106,7 @@ if __name__ == "__main__":
                 attention_mask=attention_mask,
                 span_starts=batch_span_starts,
                 span_ends=batch_span_ends,
-                top_k=100
+                top_k=top_k
             )
 
             losses = []
@@ -114,19 +115,15 @@ if __name__ == "__main__":
                 mention_scores = mention_scores_batch[b]
                 antecedent_scores = antecedent_scores_batch[b]
                 mention_to_cluster = mention_to_cluster_batch[b]
-                filtered_indices = list(range(len(mention_scores)))
-                gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
-                gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                mention_spans = batch['mentions'][b]  # список (start, end)
-                mention_clusters = mention_to_cluster  # список cluster_id
+                mention_spans = batch['mentions'][b]
+                mention_clusters = mention_to_cluster
 
                 span_to_label = {
                     (start, end): int(cluster_id != -1)
                     for (start, end), cluster_id in zip(mention_spans, mention_clusters)
                 }
 
-                # Строим метки только для top-k спанов
                 filtered_starts = filtered_span_starts_batch[b]
                 filtered_ends = filtered_span_ends_batch[b]
                 filtered_spans = list(zip(filtered_starts, filtered_ends))
@@ -136,14 +133,12 @@ if __name__ == "__main__":
                     dtype=torch.float, device=device
                 )
 
-                mention_scores = mention_scores_batch[b]
-                mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
+                gold_antecedents = get_gold_antecedents(list(range(len(mention_scores))), mention_to_cluster)
+                gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                loss = coref_loss(
-                    antecedent_scores.unsqueeze(0),
-                    gold_antecedents
-                )
-                combined_loss = loss + 0.5 * mention_loss  # можно подобрать вес (например, 0.3–1.0)
+                mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
+                loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
+                combined_loss = loss + 0.5 * mention_loss
                 losses.append(combined_loss)
 
             loss = torch.stack(losses).mean()
@@ -175,7 +170,7 @@ if __name__ == "__main__":
                     attention_mask=attention_mask,
                     span_starts=batch_span_starts,
                     span_ends=batch_span_ends,
-                    top_k=100
+                    top_k=top_k
                 )
 
                 for b in range(len(mention_scores_batch)):
@@ -184,54 +179,43 @@ if __name__ == "__main__":
                     span_starts = filtered_span_starts_batch[b]
                     span_ends = filtered_span_ends_batch[b]
                     mention_to_cluster = mention_to_cluster_batch[b]
-                    filtered_indices = list(range(len(mention_scores)))
-                    gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
-                    gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                    mention_spans = batch['mentions'][b]  # список (start, end)
-                    mention_clusters = mention_to_cluster  # список cluster_id
+                    mention_spans = batch['mentions'][b]
+                    mention_clusters = mention_to_cluster
 
                     span_to_label = {
                         (start, end): int(cluster_id != -1)
                         for (start, end), cluster_id in zip(mention_spans, mention_clusters)
                     }
 
-                    filtered_starts = filtered_span_starts_batch[b]
-                    filtered_ends = filtered_span_ends_batch[b]
-                    filtered_spans = list(zip(filtered_starts, filtered_ends))
-
+                    filtered_spans = list(zip(span_starts, span_ends))
                     mention_labels = torch.tensor(
                         [span_to_label.get(span, 0) for span in filtered_spans],
                         dtype=torch.float, device=device
                     )
 
-                    mention_scores = mention_scores_batch[b]
-                    mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
+                    gold_antecedents = get_gold_antecedents(list(range(len(mention_scores))), mention_to_cluster)
+                    gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                    loss = coref_loss(
-                        antecedent_scores.unsqueeze(0),
-                        gold_antecedents
-                    )
-                    combined_loss = loss + 0.5 * mention_loss  # можно подобрать вес (например, 0.3–1.0)
+                    mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
+                    loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
+                    combined_loss = loss + 0.5 * mention_loss
                     val_losses.append(combined_loss)
 
-                    pred_clusters = get_predicted_clusters(span_starts, span_ends, antecedent_scores, threshold=0.5)
+                    pred_clusters = get_predicted_clusters(
+                        span_starts, span_ends, antecedent_scores,
+                        mention_scores=mention_scores, threshold=threshold
+                    )
                     pred_clusters = [c for c in pred_clusters if len(c) > 1]
-                    gold_clusters = get_gold_clusters(batch['mentions'][b], batch['mention_to_cluster'][b])
+
+                    gold_clusters = get_gold_clusters(mention_spans, mention_clusters)
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
                     all_precisions.append(p)
                     all_recalls.append(r)
                     all_f1s.append(f1)
 
                     if b % 10 == 0:
-                        visualize_scores_save(mention_scores, antecedent_scores, epoch=epoch+1, batch_idx=b+1)
-
-                    # print(
-                    #     f"Mentions: {[(s, e) for s, e in zip(filtered_span_starts_batch[b], filtered_span_ends_batch[b])]}")
-                    # print(f"Mention scores: {mention_scores_batch[b].tolist()}")
-                    # print(f"Antecedent scores shape: {antecedent_scores_batch[b].shape}")
-                    # print(
-                    #     f"Gold antecedents: {get_gold_antecedents(list(range(len(mention_scores_batch[b]))), mention_to_cluster_batch[b])}")
+                        visualize_scores_save(mention_scores, antecedent_scores, epoch=epoch + 1, batch_idx=b + 1)
 
         avg_val_loss = sum(val_losses) / len(val_losses)
         avg_p = sum(all_precisions) / len(all_precisions)
