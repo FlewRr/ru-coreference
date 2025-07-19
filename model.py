@@ -114,13 +114,14 @@ class SpanBert(nn.Module):
                 filtered_ends = ends
 
             n = span_repr.size(0)
-            if n == 0:
-                antecedent_scores = torch.tensor([]).to(device)
-            else:
-                span1 = span_repr.unsqueeze(1).expand(-1, n, -1)
-                span2 = span_repr.unsqueeze(0).expand(n, -1, -1)
-                antecedent_scores = self.pairwise_scorer(span1, span2).squeeze(-1)
-                antecedent_scores = torch.tril(antecedent_scores, diagonal=-1)
+            antecedent_scores = torch.full((n, n), float("-inf"), device=device)
+            for i in range(n):
+                if i == 0:
+                    continue
+                valid_antecedents = span_repr[:i]
+                repeated = span_repr[i].unsqueeze(0).expand(i, -1)
+                scores = self.pairwise_scorer(repeated, valid_antecedents)
+                antecedent_scores[i, :i] = scores
 
             all_mention_scores.append(mention_scores)
             all_antecedent_scores.append(antecedent_scores)

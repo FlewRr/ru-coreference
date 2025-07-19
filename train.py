@@ -226,13 +226,14 @@ if __name__ == "__main__":
                     pred_clusters = [c for c in pred_clusters if len(c) > 1]
 
                     gold_clusters = get_gold_clusters(filtered_spans, filtered_clusters)
+                    gold_clusters = [c for c in gold_clusters if len(c) > 1]
+
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
 
                     predicted = torch.sigmoid(mention_scores) > 0.5
                     p_at_k = (predicted == mention_labels).sum() / len(predicted)
 
                     all_precisions.append(p)
-                    all_precision_k.append(p_at_k)
                     all_recalls.append(r)
                     all_f1s.append(f1)
 
@@ -241,10 +242,9 @@ if __name__ == "__main__":
 
         avg_val_loss = sum(val_losses) / len(val_losses)
         avg_p = sum(all_precisions) / len(all_precisions)
-        avg_p_k = sum(all_precision_k) / len(all_precision_k)
         avg_r = sum(all_recalls) / len(all_recalls)
         avg_f1 = sum(all_f1s) / len(all_f1s)
-        print(f"[Validation Epoch {epoch}] Loss: {avg_val_loss:.4f}, P: {avg_p:.3f}, P@K: {avg_p_k:.3f}, R: {avg_r:.3f}, F1: {avg_f1:.3f}")
+        print(f"[Validation Epoch {epoch}] Loss: {avg_val_loss:.4f}, P: {avg_p:.3f}, R: {avg_r:.3f}, F1: {avg_f1:.3f}")
 
         if (epoch + 1) % save_every == 0:
             ckpt_path = os.path.join(save_path, f"model_epoch_{epoch+1}.pt")
