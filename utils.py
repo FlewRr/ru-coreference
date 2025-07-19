@@ -94,6 +94,9 @@ def get_gold_antecedents(topk_indices, mention_to_cluster):
 
 def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx=None, save_dir='plots'):
     import os
+    import warnings
+
+    warnings.filterwarnings("ignore", category=RuntimeWarning, module="matplotlib.colors")
     os.makedirs(save_dir, exist_ok=True)
 
     mention_scores = mention_scores.detach().cpu().numpy()
