@@ -101,6 +101,8 @@ def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx
 
     mention_scores = mention_scores.detach().cpu().numpy()
     pairwise_scores = pairwise_scores.detach().cpu().numpy()
+    pairwise_scores = np.nan_to_num(pairwise_scores, nan=0.0, posinf=np.max(pairwise_scores), neginf=np.min(pairwise_scores))
+
     if np.isnan(pairwise_scores).any():
         print("NAN DETECTED in pairwise_scores!")
         raise ValueError("NaN in pairwise_scores")

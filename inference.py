@@ -55,7 +55,7 @@ def run_inference(text, model, tokenizer, device, threshold=0.3, top_k=30):  # �
             attention_mask=attention_mask,
             span_starts=[span_starts],
             span_ends=[span_ends],
-            top_k=30
+            top_k=100
         )
 
     # ✅ ИЗМЕНЕНИЕ: добавлена фильтрация по top_k упорядоченным mention_scores
@@ -97,7 +97,7 @@ def main():
     parser.add_argument('--checkpoint_path', type=str, default=None, help='Path to model checkpoint (.pt)')
     parser.add_argument('--text_path', type=str, required=True, help='Path to input .txt file')
     parser.add_argument('--threshold', type=float, default=0.5, help='Threshold for coreference linking')  # ✅ ИЗМЕНЕНИЕ: возможность задать threshold
-    parser.add_argument('--top_k', type=int, default=30, help='Top-K mentions to consider')  # ✅ ИЗМЕНЕНИЕ: возможность задать top_k
+    parser.add_argument('--top_k', type=int, default=100, help='Top-K mentions to consider')  # ✅ ИЗМЕНЕНИЕ: возможность задать top_k
     args = parser.parse_args()
 
     with open(args.text_path, 'r', encoding='utf-8') as f:

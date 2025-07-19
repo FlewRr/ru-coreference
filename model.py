@@ -64,7 +64,7 @@ class MentionScorer(nn.Module):
         return scores
 
 class SpanBert(nn.Module):
-    def __init__(self, model_name="DeepPavlov/rubert-base-cased", max_span_width=10, top_k: int=10):
+    def __init__(self, model_name="DeepPavlov/rubert-base-cased", max_span_width=10, top_k: int=50):
         super().__init__()
         self.bert = AutoModel.from_pretrained(model_name)
         hidden_size = self.bert.config.hidden_size
