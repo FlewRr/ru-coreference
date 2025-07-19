@@ -97,7 +97,7 @@ def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx
 
     mention_scores = mention_scores.detach().cpu().numpy()
     pairwise_scores = pairwise_scores.detach().cpu().numpy()
-    if torch.isnan(pairwise_scores).any():
+    if numpy.isnan(pairwise_scores).any():
         print("NAN DETECTED in pairwise_scores!")
         raise ValueError("NaN in pairwise_scores")
 
