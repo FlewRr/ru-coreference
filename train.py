@@ -72,11 +72,11 @@ if __name__ == "__main__":
     model = SpanBert()
 
     # Разморозим последний слой BERT
-    for name, param in model.bert.named_parameters():
-        param.requires_grad = name.startswith("encoder.layer.11") or name.startswith("pooler")
+    # for name, param in model.bert.named_parameters():
+    #     param.requires_grad = name.startswith("encoder.layer.11") or name.startswith("pooler")
 
     optimizer = torch.optim.AdamW([
-        {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 2e-5},
+        {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 1e-5},
         {"params": model.mention_scorer.parameters(), "lr": 5e-4},
         {"params": model.pairwise_scorer.parameters(), "lr": 5e-4},
     ], weight_decay=0.01)
@@ -140,6 +140,23 @@ if __name__ == "__main__":
                 filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
+
+                if batch_idx == 0 and b == 0:  # пример первого батча и первого элемента для отладки
+                    print("\n[DEBUG] TRAIN batch 0, element 0:")
+                    print(f"mention_spans (len={len(mention_spans)}): {mention_spans[:5]} ...")
+                    print(f"mention_clusters (len={len(mention_clusters)}): {mention_clusters[:5]} ...")
+                    print(f"filtered_spans (len={len(filtered_spans)}): {filtered_spans[:5]} ...")
+                    print(f"filtered_clusters (len={len(filtered_clusters)}): {filtered_clusters[:5]} ...")
+                    print(f"gold_antecedents sample: {gold_antecedents[:10]}")
+                    print(f"mention_scores shape: {mention_scores.shape}")
+                    print(f"antecedent_scores shape: {antecedent_scores.shape}")
+                    print(f"mention_labels shape: {mention_labels.shape}")
+
+                    # Проверяем что gold_antecedents в допустимом диапазоне индексов
+                    max_antecedent_idx = antecedent_scores.shape[1]  # количество кандидатов
+                    invalid_ants = [ant for ant in gold_antecedents if ant >= max_antecedent_idx]
+                    if invalid_ants:
+                        print(f"[WARNING] Some gold antecedents indices ({invalid_ants}) >= max antecedents ({max_antecedent_idx})")
 
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                 reg_loss = 0.01 * torch.norm(mention_scores, p=2)
@@ -206,7 +223,8 @@ if __name__ == "__main__":
 
                     mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                     loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
-                    combined_loss = loss + 0.5 * mention_loss
+                    reg_loss = 0.01 * torch.norm(mention_scores, p=2)
+                    combined_loss = loss + 0.5 * mention_loss + reg_loss
                     val_losses.append(combined_loss)
 
                     pred_clusters = get_predicted_clusters(
