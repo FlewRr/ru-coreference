@@ -203,8 +203,11 @@ if __name__ == "__main__":
                         dtype=torch.float, device=device
                     )
 
-                    # Собираем кластеры только для filtered_spans
-                    filtered_clusters = [span_to_label.get(span, -1) for span in filtered_spans]
+                    span_to_cluster = {
+                        (start, end): cluster_id
+                        for (start, end), cluster_id in zip(mention_spans, mention_clusters)
+                    }
+                    filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
 
                     # Теперь gold_antecedents считаем так же, как в трейне — для filtered_clusters
                     gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
