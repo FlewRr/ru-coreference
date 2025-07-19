@@ -77,7 +77,7 @@ if __name__ == "__main__":
     #     {"params": model.pairwise_scorer.parameters(), "lr": 2e-4}
     # ])
     ## TO DELETE
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -192,6 +192,13 @@ if __name__ == "__main__":
                     all_precisions.append(p)
                     all_recalls.append(r)
                     all_f1s.append(f1)
+
+                    print(
+                        f"Mentions: {[(s, e) for s, e in zip(filtered_span_starts_batch[b], filtered_span_ends_batch[b])]}")
+                    print(f"Mention scores: {mention_scores_batch[b].tolist()}")
+                    print(f"Antecedent scores shape: {antecedent_scores_batch[b].shape}")
+                    print(
+                        f"Gold antecedents: {get_gold_antecedents(list(range(len(mention_scores_batch[b]))), mention_to_cluster_batch[b])}")
 
         avg_val_loss = sum(val_losses) / len(val_losses)
         avg_p = sum(all_precisions) / len(all_precisions)

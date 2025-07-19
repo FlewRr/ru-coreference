@@ -1,21 +1,27 @@
 import torch
 import torch.nn.functional as F
 
+# def coref_loss(antecedent_scores, gold_antecedents):
+#
+#     batch_size, num_mentions, max_antecedents = antecedent_scores.shape
+#     null_scores = torch.zeros(batch_size, num_mentions, 1, device=antecedent_scores.device)
+#     scores_with_null = torch.cat([null_scores, antecedent_scores], dim=-1)  # (B, M, max_antecedents+1)
+#
+#     gold_antecedents_clamped = gold_antecedents.clone()
+#     gold_antecedents_clamped[gold_antecedents_clamped == -1] = 0
+#
+#     log_probs = F.log_softmax(scores_with_null, dim=-1)  # (B, M, max_antecedents+1)
+#     gold_log_probs = torch.gather(log_probs, 2, gold_antecedents_clamped.unsqueeze(-1)).squeeze(-1)  # (B, M)
+#     loss = -gold_log_probs.mean()
+#
+#     return loss
+
 def coref_loss(antecedent_scores, gold_antecedents):
-
-    batch_size, num_mentions, max_antecedents = antecedent_scores.shape
-    null_scores = torch.zeros(batch_size, num_mentions, 1, device=antecedent_scores.device)
-    scores_with_null = torch.cat([null_scores, antecedent_scores], dim=-1)  # (B, M, max_antecedents+1)
-
-    gold_antecedents_clamped = gold_antecedents.clone()
-    gold_antecedents_clamped[gold_antecedents_clamped == -1] = 0
-
-    log_probs = F.log_softmax(scores_with_null, dim=-1)  # (B, M, max_antecedents+1)
-    gold_log_probs = torch.gather(log_probs, 2, gold_antecedents_clamped.unsqueeze(-1)).squeeze(-1)  # (B, M)
-    loss = -gold_log_probs.mean()
-
+    # предположим, что antecedent_scores - [1, num_mentions, num_mentions]
+    # gold_antecedents - [1, num_mentions]
+    loss_fct = torch.nn.CrossEntropyLoss()
+    loss = loss_fct(antecedent_scores.squeeze(0), gold_antecedents.squeeze(0))
     return loss
-
 
 # def get_gold_antecedents(topk_indices, mention_to_cluster):
 #     """
