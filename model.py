@@ -73,18 +73,10 @@ class SpanBert(nn.Module):
         self.max_span_width = max_span_width
         self.top_k = top_k
 
-    def forward(
-            self,
-            input_ids: torch.Tensor,
-            attention_mask: torch.Tensor,
-            span_starts: list[list[int]],
-            span_ends: list[list[int]],
-            top_k: int
-    ):
+    def forward(self, input_ids, attention_mask, span_starts, span_ends, top_k=None):
         batch_size = input_ids.size(0)
         device = input_ids.device
-
-        sequence_output = self.bert(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state  # (B, T, H)
+        sequence_output = self.bert(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
 
         all_mention_scores = []
         all_pairwise_scores = []
@@ -96,16 +88,14 @@ class SpanBert(nn.Module):
             ends = span_ends[b]
 
             if len(starts) == 0:
-                starts = [0]
-                ends = [0]
+                all_mention_scores.append(torch.tensor([]).to(device))
+                all_pairwise_scores.append(torch.tensor([]).to(device))
+                filtered_span_starts_batch.append([])
+                filtered_span_ends_batch.append([])
+                continue
 
-            # пример фильтрации (тут можно применить top-K или другие критерии)
-            # пока просто берем все спаны без фильтрации
-            filtered_starts = starts
-            filtered_ends = ends
-
-            span_starts_tensor = torch.tensor(filtered_starts, device=device).unsqueeze(0)
-            span_ends_tensor = torch.tensor(filtered_ends, device=device).unsqueeze(0)
+            span_starts_tensor = torch.tensor(starts, device=device).unsqueeze(0)
+            span_ends_tensor = torch.tensor(ends, device=device).unsqueeze(0)
 
             mention_scores = self.mention_scorer(sequence_output[b:b + 1], span_starts_tensor,
                                                  span_ends_tensor).squeeze(0)
@@ -113,23 +103,29 @@ class SpanBert(nn.Module):
                                                       span_ends_tensor).squeeze(0)
 
             if top_k is not None and top_k < len(mention_scores):
-                top_k = min(top_k, len(mention_scores))
-                top_indices = torch.topk(mention_scores, k=top_k).indices
+                top_k_ = min(top_k, len(mention_scores))
+                top_indices = torch.topk(mention_scores, k=top_k_).indices
                 span_repr = span_repr[top_indices]
                 mention_scores = mention_scores[top_indices]
-                filtered_starts = [filtered_starts[i] for i in top_indices]
-                filtered_ends = [filtered_ends[i] for i in top_indices]
-
-            filtered_span_starts_batch.append(filtered_starts)
-            filtered_span_ends_batch.append(filtered_ends)
+                filtered_starts = [starts[i] for i in top_indices.cpu().tolist()]
+                filtered_ends = [ends[i] for i in top_indices.cpu().tolist()]
+            else:
+                filtered_starts = starts
+                filtered_ends = ends
 
             n = span_repr.size(0)
-            pairwise_scores = torch.zeros((n, n), device=device)
-            for i in range(n):
-                for j in range(i):
-                    pairwise_scores[i, j] = self.pairwise_scorer(span_repr[i], span_repr[j])
+            if n == 0:
+                pairwise_scores = torch.tensor([]).to(device)
+            else:
+                span1 = span_repr.unsqueeze(1).expand(-1, n, -1)
+                span2 = span_repr.unsqueeze(0).expand(n, -1, -1)
+                pairwise_features = torch.cat([span1, span2, span1 - span2, span1 * span2], dim=-1)
+                pairwise_scores = self.pairwise_scorer.ff(pairwise_features).squeeze(-1)
+                pairwise_scores = torch.tril(pairwise_scores, diagonal=-1)
 
             all_mention_scores.append(mention_scores)
             all_pairwise_scores.append(pairwise_scores)
+            filtered_span_starts_batch.append(filtered_starts)
+            filtered_span_ends_batch.append(filtered_ends)
 
         return all_mention_scores, all_pairwise_scores, filtered_span_starts_batch, filtered_span_ends_batch

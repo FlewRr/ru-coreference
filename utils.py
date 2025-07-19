@@ -16,11 +16,54 @@ import torch.nn.functional as F
 #
 #     return loss
 
-def coref_loss(antecedent_scores, gold_antecedents):
-    # предположим, что antecedent_scores - [1, num_mentions, num_mentions]
-    # gold_antecedents - [1, num_mentions]
-    loss_fct = torch.nn.CrossEntropyLoss()
-    loss = loss_fct(antecedent_scores.squeeze(0), gold_antecedents.squeeze(0))
+import torch
+import torch.nn.functional as F
+
+def coref_loss(antecedent_scores, gold_antecedents, antecedent_mask=None):
+    """
+    Вычисляет loss для кореференции с учетом фиктивного null-антецедента.
+
+    Args:
+        antecedent_scores: torch.Tensor, shape (B, M, K)
+            Логиты модели для каждого меншиона и его K возможных антецедентов (без null).
+        gold_antecedents: torch.LongTensor, shape (B, M)
+            Индексы правильных антецедентов для каждого меншиона в диапазоне [0..K],
+            где 0 — фиктивный null-антецедент.
+        antecedent_mask: torch.BoolTensor или None, shape (B, M, K)
+            Маска допустимых антецедентов (True — valid), если есть padding.
+
+    Returns:
+        loss: scalar tensor
+    """
+
+    B, M, K = antecedent_scores.shape
+
+    # Добавляем фиктивный null-антецедент с логитом 0
+    null_logits = torch.zeros(B, M, 1, device=antecedent_scores.device, dtype=antecedent_scores.dtype)
+    scores_with_null = torch.cat([null_logits, antecedent_scores], dim=-1)  # (B, M, K+1)
+
+    if antecedent_mask is not None:
+        # Маска для всех K антецедентов (без null)
+        # Добавим True для null-антецедента (его нет в маске, он всегда валиден)
+        null_mask = torch.ones(B, M, 1, device=antecedent_mask.device, dtype=torch.bool)
+        mask_with_null = torch.cat([null_mask, antecedent_mask], dim=-1)  # (B, M, K+1)
+
+        # Чтобы softmax не учитывал паддинги, заливаем их -inf
+        scores_with_null = scores_with_null.masked_fill(~mask_with_null, float('-inf'))
+
+    # Если в gold антецедентах есть -1 (нет правильного антецедента), заменим на 0 (null)
+    gold_antecedents_clamped = gold_antecedents.clone()
+    gold_antecedents_clamped[gold_antecedents_clamped == -1] = 0
+
+    # Лог-пробабильности
+    log_probs = F.log_softmax(scores_with_null, dim=-1)  # (B, M, K+1)
+
+    # Собираем лог-пробы для правильных антецедентов
+    gold_log_probs = torch.gather(log_probs, 2, gold_antecedents_clamped.unsqueeze(-1)).squeeze(-1)  # (B, M)
+
+    # Усредняем loss по всем меншионам и батчу
+    loss = -gold_log_probs.mean()
+
     return loss
 
 # def get_gold_antecedents(topk_indices, mention_to_cluster):
