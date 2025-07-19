@@ -140,13 +140,7 @@ if __name__ == "__main__":
                 filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
-
-                probs = torch.sigmoid(mention_scores)
-                print("mention_scores logits:", probs[:10].detach().cpu().numpy().round(3))
-
-                probs_antecedent = torch.sigmoid(antecedent_scores)
-                print("antecendent_scores logits:", probs_antecedent[:10].detach().cpu().numpy().round(3))
-
+                
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                 reg_loss = 0.01 * torch.norm(mention_scores, p=2)
                 loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
