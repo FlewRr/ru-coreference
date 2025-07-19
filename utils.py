@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 from matplotlib import pyplot as plt
 import seaborn as sns
+import numpy as np
 
 def coref_loss(antecedent_scores, gold_antecedents, antecedent_mask=None):
     """
@@ -97,7 +98,7 @@ def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx
 
     mention_scores = mention_scores.detach().cpu().numpy()
     pairwise_scores = pairwise_scores.detach().cpu().numpy()
-    if numpy.isnan(pairwise_scores).any():
+    if np.isnan(pairwise_scores).any():
         print("NAN DETECTED in pairwise_scores!")
         raise ValueError("NaN in pairwise_scores")
 
