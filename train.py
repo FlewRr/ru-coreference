@@ -114,14 +114,7 @@ if __name__ == "__main__":
                 antecedent_scores = antecedent_scores_batch[b]
                 mention_to_cluster = mention_to_cluster_batch[b]
                 filtered_indices = list(range(len(mention_scores)))
-                # gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
-                gold_antecedents = get_gold_antecedents(
-                    topk_indices=filtered_indices,
-                    mention_to_cluster=mention_to_cluster,
-                    all_mentions=batch['mentions'][b],
-                    input_ids=input_ids[b],
-                    tokenizer=dataset.tokenizer  # или где он у тебя
-                )
+                gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                 loss = coref_loss(
@@ -169,14 +162,7 @@ if __name__ == "__main__":
                     span_ends = filtered_span_ends_batch[b]
                     mention_to_cluster = mention_to_cluster_batch[b]
                     filtered_indices = list(range(len(mention_scores)))
-                    # gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
-                    gold_antecedents = get_gold_antecedents(
-                        topk_indices=filtered_indices,
-                        mention_to_cluster=mention_to_cluster,
-                        all_mentions=batch['mentions'][b],
-                        input_ids=input_ids[b],
-                        tokenizer=dataset.tokenizer  # или где он у тебя
-                    )
+                    gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                     loss = coref_loss(

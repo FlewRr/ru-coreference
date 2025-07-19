@@ -66,29 +66,12 @@ def coref_loss(antecedent_scores, gold_antecedents, antecedent_mask=None):
 
     return loss
 
-# def get_gold_antecedents(topk_indices, mention_to_cluster):
-#     """
-#     topk_indices: List[int] — индексы топ-K меншионов
-#     mention_to_cluster: List[int] — соответствие всех меншионов кластерам
-#     Возвращает List[int] — индекс антецедента из topk_indices для каждого меншиона, или -1 если нет
-#     """
-#     gold_antecedents = []
-#
-#     for i, idx_i in enumerate(topk_indices):
-#         cluster_i = mention_to_cluster[idx_i]
-#         found = False
-#         for j in range(i - 1, -1, -1):
-#             idx_j = topk_indices[j]
-#             if mention_to_cluster[idx_j] == cluster_i:
-#                 gold_antecedents.append(j)
-#                 found = True
-#                 break
-#         if not found:
-#             gold_antecedents.append(-1)
-#
-#     return gold_antecedents
-
-def get_gold_antecedents(topk_indices, mention_to_cluster, all_mentions, input_ids, tokenizer):
+def get_gold_antecedents(topk_indices, mention_to_cluster):
+    """
+    topk_indices: List[int] — индексы топ-K меншионов
+    mention_to_cluster: List[int] — соответствие всех меншионов кластерам
+    Возвращает List[int] — индекс антецедента из topk_indices для каждого меншиона, или -1 если нет
+    """
     gold_antecedents = []
 
     for i, idx_i in enumerate(topk_indices):
@@ -99,22 +82,12 @@ def get_gold_antecedents(topk_indices, mention_to_cluster, all_mentions, input_i
             if mention_to_cluster[idx_j] == cluster_i:
                 gold_antecedents.append(j)
                 found = True
-
-                # 🟢 Логгируем пары coreferent mentions
-                span_i = all_mentions[idx_i]
-                span_j = all_mentions[idx_j]
-                text_i = tokenizer.decode(input_ids[span_i[0]:span_i[1]+1])
-                text_j = tokenizer.decode(input_ids[span_j[0]:span_j[1]+1])
-                # print(f"[COREF] {text_j}  ← antecedent of  {text_i}")
                 break
-
         if not found:
             gold_antecedents.append(-1)
-            span_i = all_mentions[idx_i]
-            text_i = tokenizer.decode(input_ids[span_i[0]:span_i[1]+1])
-            # print(f"[NO COREF] {text_i}  ← no antecedent")
 
     return gold_antecedents
+
 
 # для каждого mention [i] - берем правильный антецедент gold_ante
 # если gold_ante == -1, значит его для данного mention нет - скипаем
