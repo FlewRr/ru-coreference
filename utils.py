@@ -18,6 +18,8 @@ import torch.nn.functional as F
 
 import torch
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 def coref_loss(antecedent_scores, gold_antecedents, antecedent_mask=None):
     """
@@ -87,6 +89,41 @@ def get_gold_antecedents(topk_indices, mention_to_cluster):
             gold_antecedents.append(-1)
 
     return gold_antecedents
+
+
+def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx=None, save_dir='plots'):
+    import os
+    os.makedirs(save_dir, exist_ok=True)
+
+    mention_scores = mention_scores.detach().cpu().numpy()
+    pairwise_scores = pairwise_scores.detach().cpu().numpy()
+
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.hist(mention_scores, bins=30, color='skyblue', edgecolor='black')
+    plt.title(f'Mention Scores Histogram (Epoch {epoch}, Batch {batch_idx})')
+    plt.xlabel('Mention Score')
+    plt.ylabel('Frequency')
+
+    plt.subplot(1, 2, 2)
+    sns.heatmap(pairwise_scores, cmap='coolwarm', center=0)
+    plt.title(f'Pairwise Scores Heatmap (Epoch {epoch}, Batch {batch_idx})')
+    plt.xlabel('Antecedent Index')
+    plt.ylabel('Mention Index')
+
+    plt.tight_layout()
+    plt.savefig(f'{save_dir}/epoch{epoch}_batch{batch_idx}.png')
+    plt.close()
+
+
+
+
+
+
+
+
+
 
 
 # для каждого mention [i] - берем правильный антецедент gold_ante

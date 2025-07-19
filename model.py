@@ -79,7 +79,7 @@ class SpanBert(nn.Module):
         sequence_output = self.bert(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
 
         all_mention_scores = []
-        all_pairwise_scores = []
+        all_antecedent_scores = []
         filtered_span_starts_batch = []
         filtered_span_ends_batch = []
 
@@ -89,7 +89,7 @@ class SpanBert(nn.Module):
 
             if len(starts) == 0:
                 all_mention_scores.append(torch.tensor([]).to(device))
-                all_pairwise_scores.append(torch.tensor([]).to(device))
+                all_antecedent_scores.append(torch.tensor([]).to(device))
                 filtered_span_starts_batch.append([])
                 filtered_span_ends_batch.append([])
                 continue
@@ -115,17 +115,17 @@ class SpanBert(nn.Module):
 
             n = span_repr.size(0)
             if n == 0:
-                pairwise_scores = torch.tensor([]).to(device)
+                antecedent_scores = torch.tensor([]).to(device)
             else:
                 span1 = span_repr.unsqueeze(1).expand(-1, n, -1)
                 span2 = span_repr.unsqueeze(0).expand(n, -1, -1)
                 pairwise_features = torch.cat([span1, span2, span1 - span2, span1 * span2], dim=-1)
-                pairwise_scores = self.pairwise_scorer.ff(pairwise_features).squeeze(-1)
-                pairwise_scores = torch.tril(pairwise_scores, diagonal=-1)
+                antecedent_scores = self.pairwise_scorer.ff(pairwise_features).squeeze(-1)
+                antecedent_scores = torch.tril(antecedent_scores, diagonal=-1)
 
             all_mention_scores.append(mention_scores)
-            all_pairwise_scores.append(pairwise_scores)
+            all_antecedent_scores.append(antecedent_scores)
             filtered_span_starts_batch.append(filtered_starts)
             filtered_span_ends_batch.append(filtered_ends)
 
-        return all_mention_scores, all_pairwise_scores, filtered_span_starts_batch, filtered_span_ends_batch
+        return all_mention_scores, all_antecedent_scores, filtered_span_starts_batch, filtered_span_ends_batch

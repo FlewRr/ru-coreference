@@ -3,7 +3,7 @@ import json
 import torch
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
-from utils import coref_loss, get_gold_antecedents
+from utils import coref_loss, get_gold_antecedents, visualize_scores_save
 from dataset import collate_fn, RuCoCoDataset
 from model import SpanBert
 from clusters import get_predicted_clusters
@@ -178,6 +178,8 @@ if __name__ == "__main__":
                     all_precisions.append(p)
                     all_recalls.append(r)
                     all_f1s.append(f1)
+
+                    visualize_scores_save(mention_scores, antecedent_scores, epoch=epoch+1, batch_idx=b+1)
 
                     print(
                         f"Mentions: {[(s, e) for s, e in zip(filtered_span_starts_batch[b], filtered_span_ends_batch[b])]}")
