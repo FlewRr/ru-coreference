@@ -188,10 +188,23 @@ if __name__ == "__main__":
                     gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
+                    mention_spans = batch['mentions'][b]  # список (start, end)
+                    mention_clusters = mention_to_cluster  # список cluster_id
+
+                    span_to_label = {
+                        (start, end): int(cluster_id != -1)
+                        for (start, end), cluster_id in zip(mention_spans, mention_clusters)
+                    }
+
+                    filtered_starts = filtered_span_starts_batch[b]
+                    filtered_ends = filtered_span_ends_batch[b]
+                    filtered_spans = list(zip(filtered_starts, filtered_ends))
+
                     mention_labels = torch.tensor(
-                        [int(cluster_id != -1) for cluster_id in mention_to_cluster],
+                        [span_to_label.get(span, 0) for span in filtered_spans],
                         dtype=torch.float, device=device
                     )
+
                     mention_scores = mention_scores_batch[b]
                     mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
 
