@@ -179,14 +179,15 @@ if __name__ == "__main__":
                     all_recalls.append(r)
                     all_f1s.append(f1)
 
-                    visualize_scores_save(mention_scores, antecedent_scores, epoch=epoch+1, batch_idx=b+1)
+                    if b % 10 == 0:
+                        visualize_scores_save(mention_scores, antecedent_scores, epoch=epoch+1, batch_idx=b+1)
 
-                    print(
-                        f"Mentions: {[(s, e) for s, e in zip(filtered_span_starts_batch[b], filtered_span_ends_batch[b])]}")
-                    print(f"Mention scores: {mention_scores_batch[b].tolist()}")
-                    print(f"Antecedent scores shape: {antecedent_scores_batch[b].shape}")
-                    print(
-                        f"Gold antecedents: {get_gold_antecedents(list(range(len(mention_scores_batch[b]))), mention_to_cluster_batch[b])}")
+                    # print(
+                    #     f"Mentions: {[(s, e) for s, e in zip(filtered_span_starts_batch[b], filtered_span_ends_batch[b])]}")
+                    # print(f"Mention scores: {mention_scores_batch[b].tolist()}")
+                    # print(f"Antecedent scores shape: {antecedent_scores_batch[b].shape}")
+                    # print(
+                    #     f"Gold antecedents: {get_gold_antecedents(list(range(len(mention_scores_batch[b]))), mention_to_cluster_batch[b])}")
 
         avg_val_loss = sum(val_losses) / len(val_losses)
         avg_p = sum(all_precisions) / len(all_precisions)
