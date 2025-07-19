@@ -19,7 +19,7 @@ class SpanRepresentation(nn.Module):
         batch_size = sequence_output.size(0)
         hidden_size = sequence_output.size(-1)
 
-        batch_idx = torch.arange(batch_size).unsqueeze(1).expand(-1, span_starts.size(1))  # (batch, num_spans)
+        batch_idx = torch.arange(batch_size, device=sequence_output.device).unsqueeze(1).expand(-1, span_starts.size(1))
         start_embed = self.ff_start(sequence_output[batch_idx, span_starts])  # (batch, num_spans, hidden)
         end_embed = self.ff_end(sequence_output[batch_idx, span_ends])        # (batch, num_spans, hidden)
 
@@ -120,7 +120,7 @@ class SpanBert(nn.Module):
                 span1 = span_repr.unsqueeze(1).expand(-1, n, -1)
                 span2 = span_repr.unsqueeze(0).expand(n, -1, -1)
                 pairwise_features = torch.cat([span1, span2, span1 - span2, span1 * span2], dim=-1)
-                antecedent_scores = self.pairwise_scorer.ff(pairwise_features).squeeze(-1)
+                antecedent_scores = self.pairwise_scorer(pairwise_features).squeeze(-1)
                 antecedent_scores = torch.tril(antecedent_scores, diagonal=-1)
 
             all_mention_scores.append(mention_scores)
