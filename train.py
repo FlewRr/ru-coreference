@@ -58,6 +58,8 @@ if __name__ == "__main__":
     data_dir = config.get("data_dir", "RuCoCo")
     threshold = config.get("threshold", 0.8)
     top_k = config.get("top_k", 50)
+    loss_weight = config.get("mention_loss_weight", 0.5)
+    reg_weight = config.get("reg_weight", 0.01)
 
     os.makedirs(save_path, exist_ok=True)
 
@@ -140,11 +142,11 @@ if __name__ == "__main__":
                 filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
-                
+
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
-                reg_loss = 0.01 * torch.norm(mention_scores, p=2)
+                reg_loss = reg_weight * torch.norm(mention_scores, p=2)
                 loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
-                combined_loss = loss + 0.5 * mention_loss + reg_loss
+                combined_loss = loss + loss_weight * mention_loss + reg_loss
                 losses.append(combined_loss)
 
             loss = torch.stack(losses).mean()
@@ -201,13 +203,17 @@ if __name__ == "__main__":
                         dtype=torch.float, device=device
                     )
 
-                    gold_antecedents = get_gold_antecedents(list(range(len(mention_scores))), mention_to_cluster)
+                    # Собираем кластеры только для filtered_spans
+                    filtered_clusters = [span_to_label.get(span, -1) for span in filtered_spans]
+
+                    # Теперь gold_antecedents считаем так же, как в трейне — для filtered_clusters
+                    gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                     mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                     loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
-                    reg_loss = 0.01 * torch.norm(mention_scores, p=2)
-                    combined_loss = loss + 0.5 * mention_loss + reg_loss
+                    reg_loss = reg_weight * torch.norm(mention_scores, p=2)
+                    combined_loss = loss + loss_weight * mention_loss + reg_loss
                     val_losses.append(combined_loss)
 
                     pred_clusters = get_predicted_clusters(
@@ -216,7 +222,7 @@ if __name__ == "__main__":
                     )
                     pred_clusters = [c for c in pred_clusters if len(c) > 1]
 
-                    gold_clusters = get_gold_clusters(mention_spans, mention_clusters)
+                    gold_clusters = get_gold_clusters(filtered_spans, filtered_clusters)
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
 
                     predicted = torch.sigmoid(mention_scores) > 0.5
