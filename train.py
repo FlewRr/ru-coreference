@@ -88,7 +88,7 @@ if __name__ == "__main__":
         model.train()
         total_train_loss = 0
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}", dynamic_ncols=True, leave=True)
-        for batch in pbar:
+        for batch_idx, batch in enumerate(pbar):
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
