@@ -71,7 +71,7 @@ def coref_loss(antecedent_scores, gold_antecedents, antecedent_mask=None):
 
 def get_gold_antecedents(topk_indices, mention_to_cluster):
     """
-    topk_indices: List[int] — индексы топ-K меншионов
+    topk_indices: List[int] — индексы top-K меншионов
     mention_to_cluster: List[int] — соответствие всех меншионов кластерам
     Возвращает List[int] — индекс антецедента из topk_indices для каждого меншиона, или -1 если нет
     """
@@ -79,17 +79,16 @@ def get_gold_antecedents(topk_indices, mention_to_cluster):
 
     for i, idx_i in enumerate(topk_indices):
         cluster_i = mention_to_cluster[idx_i]
-        found = False
-        for j in range(i - 1, -1, -1):
+        found_antecedent = -1
+
+        for j in range(i):
             idx_j = topk_indices[j]
             if mention_to_cluster[idx_j] == cluster_i:
-                gold_antecedents.append(j)
-                found = True
-                break
-        if not found:
-            gold_antecedents.append(-1)
+                found_antecedent = j  # берём самого последнего предыдущего
+        gold_antecedents.append(found_antecedent)
 
     return gold_antecedents
+
 
 
 def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx=None, save_dir='plots'):

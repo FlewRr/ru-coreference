@@ -2,6 +2,7 @@ import os
 import json
 import torch
 from torch.utils.data import DataLoader, random_split
+import torch.nn.functionas as F
 from tqdm import tqdm
 from utils import coref_loss, get_gold_antecedents, visualize_scores_save
 from dataset import collate_fn, RuCoCoDataset
@@ -117,11 +118,19 @@ if __name__ == "__main__":
                 gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
+                mention_labels = torch.tensor(
+                    [int(cluster_id != -1) for cluster_id in mention_to_cluster],
+                    dtype=torch.float, device=device
+                )
+                mention_scores = mention_scores_batch[b]
+                mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
+
                 loss = coref_loss(
                     antecedent_scores.unsqueeze(0),
                     gold_antecedents
                 )
-                losses.append(loss)
+                combined_loss = loss + 0.5 * mention_loss  # можно подобрать вес (например, 0.3–1.0)
+                losses.append(combined_loss)
 
             loss = torch.stack(losses).mean()
             total_train_loss += loss.item()
@@ -165,11 +174,19 @@ if __name__ == "__main__":
                     gold_antecedents = get_gold_antecedents(filtered_indices, mention_to_cluster)
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
+                    mention_labels = torch.tensor(
+                        [int(cluster_id != -1) for cluster_id in mention_to_cluster],
+                        dtype=torch.float, device=device
+                    )
+                    mention_scores = mention_scores_batch[b]
+                    mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
+
                     loss = coref_loss(
                         antecedent_scores.unsqueeze(0),
                         gold_antecedents
                     )
-                    val_losses.append(loss.item())
+                    combined_loss = loss + 0.5 * mention_loss  # можно подобрать вес (например, 0.3–1.0)
+                    val_losses.append(combined_loss)
 
                     pred_clusters = get_predicted_clusters(span_starts, span_ends, antecedent_scores, threshold=0.5)
                     pred_clusters = [c for c in pred_clusters if len(c) > 1]

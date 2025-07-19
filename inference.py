@@ -79,6 +79,7 @@ def run_inference(text, model, tokenizer, device, threshold=0.3, top_k=30):  # â
         filtered_starts,
         filtered_ends,
         filtered_antecedent_scores,
+        mention_scores=mention_scores,
         threshold=threshold
     )
 
