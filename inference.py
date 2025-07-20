@@ -79,7 +79,7 @@ def run_inference(text, model, tokenizer, device, threshold=0.3, top_k=30):
         filtered_antecedent_scores,
         mention_scores=mention_scores,
         mention_threshold=threshold,
-        antecedent_score_threshold=0.1
+        antecedent_score_threshold=0.75
     )
 
     result_clusters = []
