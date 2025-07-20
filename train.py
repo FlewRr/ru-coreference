@@ -212,7 +212,7 @@ if __name__ == "__main__":
 
                     pred_clusters = get_predicted_clusters(
                         filtered_span_starts_batch[b], filtered_span_ends_batch[b], antecedent_scores,
-                        mention_scores=mention_scores, mention_threshold=threshold, antecedent_score_threshold=0.75
+                        mention_scores=mention_scores, mention_threshold=threshold, antecedent_score_threshold=0.1
                     )
                     gold_clusters = get_gold_clusters(filtered_spans, filtered_clusters)
 
