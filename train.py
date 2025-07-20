@@ -73,10 +73,6 @@ if __name__ == "__main__":
 
     model = SpanBert()
 
-    # Разморозим последний слой BERT
-    # for name, param in model.bert.named_parameters():
-    #     param.requires_grad = name.startswith("encoder.layer.11") or name.startswith("pooler")
-
     optimizer = torch.optim.AdamW([
         {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 1e-5},
         {"params": model.mention_scorer.parameters(), "lr": 5e-4},
@@ -103,12 +99,12 @@ if __name__ == "__main__":
                 batch_span_starts.append(starts)
                 batch_span_ends.append(ends)
 
-            mention_scores_batch, antecedent_scores_batch, filtered_span_starts_batch, filtered_span_ends_batch = model(
+            mention_scores_batch, antecedent_scores_batch, filtered_span_starts_batch, filtered_span_ends_batch, antecedent_masks_batch = model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 span_starts=batch_span_starts,
                 span_ends=batch_span_ends,
-                top_k=top_k
+                top_k=top_k if epoch >= 1 else None
             )
 
             losses = []
@@ -143,9 +139,13 @@ if __name__ == "__main__":
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
+                with torch.no_grad():
+                    ratio = (gold_antecedents == -1).float().mean().item()
+                    print(f"[Debug] Null antecedent ratio: {ratio:.2f}")
+
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                 reg_loss = reg_weight * torch.norm(mention_scores, p=2)
-                loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
+                loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents, antecedent_masks_batch[b].unsqueeze(0))
                 combined_loss = loss + loss_weight * mention_loss + reg_loss
                 losses.append(combined_loss)
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
                     batch_span_starts.append(starts)
                     batch_span_ends.append(ends)
 
-                mention_scores_batch, antecedent_scores_batch, filtered_span_starts_batch, filtered_span_ends_batch = model(
+                mention_scores_batch, antecedent_scores_batch, filtered_span_starts_batch, filtered_span_ends_batch, antecedent_masks_batch = model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     span_starts=batch_span_starts,
@@ -214,7 +214,7 @@ if __name__ == "__main__":
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                     mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
-                    loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents)
+                    loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents, antecedent_masks_batch[b].unsqueeze(0))
                     reg_loss = reg_weight * torch.norm(mention_scores, p=2)
                     combined_loss = loss + loss_weight * mention_loss + reg_loss
                     val_losses.append(combined_loss)
@@ -229,9 +229,6 @@ if __name__ == "__main__":
                     gold_clusters = [c for c in gold_clusters if len(c) > 1]
 
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
-
-                    predicted = torch.sigmoid(mention_scores) > 0.5
-                    p_at_k = (predicted == mention_labels).sum() / len(predicted)
 
                     all_precisions.append(p)
                     all_recalls.append(r)

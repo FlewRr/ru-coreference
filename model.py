@@ -82,6 +82,7 @@ class SpanBert(nn.Module):
         all_antecedent_scores = []
         filtered_span_starts_batch = []
         filtered_span_ends_batch = []
+        all_antecedent_masks = []
 
         for b in range(batch_size):
             starts = span_starts[b]
@@ -92,6 +93,7 @@ class SpanBert(nn.Module):
                 all_antecedent_scores.append(torch.tensor([]).to(device))
                 filtered_span_starts_batch.append([])
                 filtered_span_ends_batch.append([])
+                all_antecedent_masks.append(torch.tensor([]).to(device))
                 continue
 
             span_starts_tensor = torch.tensor(starts, device=device).unsqueeze(0)
@@ -115,6 +117,8 @@ class SpanBert(nn.Module):
 
             n = span_repr.size(0)
             antecedent_scores = torch.full((n, n), float("-inf"), device=device)
+            antecedent_mask = torch.zeros((n, n), dtype=torch.bool, device=device)
+
             for i in range(n):
                 if i == 0:
                     continue
@@ -122,10 +126,12 @@ class SpanBert(nn.Module):
                 repeated = span_repr[i].unsqueeze(0).expand(i, -1)
                 scores = self.pairwise_scorer(repeated, valid_antecedents)
                 antecedent_scores[i, :i] = scores
+                antecedent_mask[i, :i] = True
 
             all_mention_scores.append(mention_scores)
             all_antecedent_scores.append(antecedent_scores)
             filtered_span_starts_batch.append(filtered_starts)
             filtered_span_ends_batch.append(filtered_ends)
+            all_antecedent_masks.append(antecedent_mask)
 
-        return all_mention_scores, all_antecedent_scores, filtered_span_starts_batch, filtered_span_ends_batch
+        return all_mention_scores, all_antecedent_scores, filtered_span_starts_batch, filtered_span_ends_batch, all_antecedent_masks
