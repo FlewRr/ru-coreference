@@ -58,6 +58,7 @@ if __name__ == "__main__":
     data_dir = config.get("data_dir", "RuCoCo")
     threshold = config.get("threshold", 0.8)
     top_k = config.get("top_k", 50)
+    val_top_k = config.get("val_top_k", 15)
     loss_weight = config.get("mention_loss_weight", 0.5)
     reg_weight = config.get("reg_weight", 0.01)
 
@@ -100,7 +101,7 @@ if __name__ == "__main__":
                 attention_mask=attention_mask,
                 span_starts=batch_span_starts,
                 span_ends=batch_span_ends,
-                top_k=None  # отключаем top_k при обучении
+                top_k=top_k
             )
 
             (
@@ -174,7 +175,7 @@ if __name__ == "__main__":
                     attention_mask=attention_mask,
                     span_starts=batch_span_starts,
                     span_ends=batch_span_ends,
-                    top_k=top_k
+                    top_k=val_top_k
                 )
 
                 for b in range(len(mention_scores_batch)):
