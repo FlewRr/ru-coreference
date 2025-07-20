@@ -73,14 +73,23 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=eval_batch_size, collate_fn=collate_fn, shuffle=False)
 
     model = SpanBert()
+    
+    for param in model.bert.parameters():
+        param.requires_grad = False
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
+    # Оптимизатор — только голова модели
     optimizer = torch.optim.AdamW([
-        {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 1e-5},
         {"params": model.mention_scorer.parameters(), "lr": 5e-4},
         {"params": model.pairwise_scorer.parameters(), "lr": 5e-4},
     ], weight_decay=0.01)
+    # optimizer = torch.optim.AdamW([
+    #     {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 1e-5},
+    #     {"params": model.mention_scorer.parameters(), "lr": 5e-4},
+    #     {"params": model.pairwise_scorer.parameters(), "lr": 5e-4},
+    # ], weight_decay=0.01)
 
     for epoch in range(epochs):
         model.train()
