@@ -72,6 +72,8 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=eval_batch_size, collate_fn=collate_fn, shuffle=False)
 
     model = SpanBert()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
 
     optimizer = torch.optim.AdamW([
         {"params": [p for n, p in model.bert.named_parameters() if p.requires_grad], "lr": 1e-5},
@@ -79,84 +81,78 @@ if __name__ == "__main__":
         {"params": model.pairwise_scorer.parameters(), "lr": 5e-4},
     ], weight_decay=0.01)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-
     for epoch in range(epochs):
         model.train()
         total_train_loss = 0
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}", dynamic_ncols=True, leave=True)
+
         for batch_idx, batch in enumerate(pbar):
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             mention_to_cluster_batch = batch['mention_to_cluster']
 
-            batch_span_starts, batch_span_ends = [], []
-            for mentions in batch['mentions']:
-                starts = [s for s, _ in mentions]
-                ends = [e for _, e in mentions]
-                batch_span_starts.append(starts)
-                batch_span_ends.append(ends)
+            batch_span_starts = [[s for s, _ in m] for m in batch['mentions']]
+            batch_span_ends = [[e for _, e in m] for m in batch['mentions']]
 
-            mention_scores_batch, antecedent_scores_batch, filtered_span_starts_batch, filtered_span_ends_batch, antecedent_masks_batch = model(
+            out = model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 span_starts=batch_span_starts,
                 span_ends=batch_span_ends,
-                top_k=top_k if epoch >= 1 else None
+                top_k=None  # отключаем top_k при обучении
             )
 
+            (
+                mention_scores_batch,
+                antecedent_scores_batch,
+                filtered_span_starts_batch,
+                filtered_span_ends_batch,
+                antecedent_masks_batch
+            ) = out
+
             losses = []
-            batch_size = len(mention_scores_batch)
-            for b in range(batch_size):
+            for b in range(len(mention_scores_batch)):
+                if mention_scores_batch[b].numel() == 0:
+                    continue
+
                 mention_scores = mention_scores_batch[b]
                 antecedent_scores = antecedent_scores_batch[b]
                 mention_to_cluster = mention_to_cluster_batch[b]
 
                 mention_spans = batch['mentions'][b]
-                mention_clusters = mention_to_cluster
+                span_to_label = {(s, e): int(cid != -1) for (s, e), cid in zip(mention_spans, mention_to_cluster)}
 
-                span_to_label = {
-                    (start, end): int(cluster_id != -1)
-                    for (start, end), cluster_id in zip(mention_spans, mention_clusters)
-                }
-
-                filtered_starts = filtered_span_starts_batch[b]
-                filtered_ends = filtered_span_ends_batch[b]
-                filtered_spans = list(zip(filtered_starts, filtered_ends))
-
+                filtered_spans = list(zip(filtered_span_starts_batch[b], filtered_span_ends_batch[b]))
                 mention_labels = torch.tensor(
                     [span_to_label.get(span, 0) for span in filtered_spans],
                     dtype=torch.float, device=device
                 )
 
-                span_to_cluster = {
-                    (start, end): cluster_id
-                    for (start, end), cluster_id in zip(mention_spans, mention_clusters)
-                }
+                span_to_cluster = {(s, e): cid for (s, e), cid in zip(mention_spans, mention_to_cluster)}
                 filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
+
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
-
 
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                 reg_loss = reg_weight * torch.norm(mention_scores, p=2)
                 loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents, antecedent_masks_batch[b].unsqueeze(0))
-                combined_loss = loss + loss_weight * mention_loss + reg_loss
-                losses.append(combined_loss)
+                total_loss = loss + loss_weight * mention_loss + reg_loss
+                losses.append(total_loss)
 
-            loss = torch.stack(losses).mean()
-            total_train_loss += loss.item()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            if losses:
+                loss = torch.stack(losses).mean()
+                total_train_loss += loss.item()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
 
         print(f"Epoch {epoch}: Avg Train Loss = {total_train_loss / len(train_loader):.4f}")
 
         # Валидация
         model.eval()
-        val_losses, all_precisions, all_precision_k, all_recalls, all_f1s = [], [], [], [], []
+        val_losses, all_precisions, all_recalls, all_f1s = [], [], [], []
 
         with torch.no_grad():
             for batch in val_loader:
@@ -164,14 +160,16 @@ if __name__ == "__main__":
                 attention_mask = batch['attention_mask'].to(device)
                 mention_to_cluster_batch = batch['mention_to_cluster']
 
-                batch_span_starts, batch_span_ends = [], []
-                for mentions in batch['mentions']:
-                    starts = [s for s, _ in mentions]
-                    ends = [e for _, e in mentions]
-                    batch_span_starts.append(starts)
-                    batch_span_ends.append(ends)
+                batch_span_starts = [[s for s, _ in m] for m in batch['mentions']]
+                batch_span_ends = [[e for _, e in m] for m in batch['mentions']]
 
-                mention_scores_batch, antecedent_scores_batch, filtered_span_starts_batch, filtered_span_ends_batch, antecedent_masks_batch = model(
+                (
+                    mention_scores_batch,
+                    antecedent_scores_batch,
+                    filtered_span_starts_batch,
+                    filtered_span_ends_batch,
+                    antecedent_masks_batch
+                ) = model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     span_starts=batch_span_starts,
@@ -180,6 +178,9 @@ if __name__ == "__main__":
                 )
 
                 for b in range(len(mention_scores_batch)):
+                    if mention_scores_batch[b].numel() == 0:
+                        continue
+
                     mention_scores = mention_scores_batch[b]
                     antecedent_scores = antecedent_scores_batch[b]
                     span_starts = filtered_span_starts_batch[b]
@@ -187,46 +188,34 @@ if __name__ == "__main__":
                     mention_to_cluster = mention_to_cluster_batch[b]
 
                     mention_spans = batch['mentions'][b]
-                    mention_clusters = mention_to_cluster
-
-                    span_to_label = {
-                        (start, end): int(cluster_id != -1)
-                        for (start, end), cluster_id in zip(mention_spans, mention_clusters)
-                    }
-
+                    span_to_label = {(s, e): int(cid != -1) for (s, e), cid in zip(mention_spans, mention_to_cluster)}
                     filtered_spans = list(zip(span_starts, span_ends))
+
                     mention_labels = torch.tensor(
                         [span_to_label.get(span, 0) for span in filtered_spans],
                         dtype=torch.float, device=device
                     )
 
-                    span_to_cluster = {
-                        (start, end): cluster_id
-                        for (start, end), cluster_id in zip(mention_spans, mention_clusters)
-                    }
+                    span_to_cluster = {(s, e): cid for (s, e), cid in zip(mention_spans, mention_to_cluster)}
                     filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
 
-                    # Теперь gold_antecedents считаем так же, как в трейне — для filtered_clusters
                     gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                     gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
                     mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                     loss = coref_loss(antecedent_scores.unsqueeze(0), gold_antecedents, antecedent_masks_batch[b].unsqueeze(0))
                     reg_loss = reg_weight * torch.norm(mention_scores, p=2)
-                    combined_loss = loss + loss_weight * mention_loss + reg_loss
-                    val_losses.append(combined_loss)
+                    total_loss = loss + loss_weight * mention_loss + reg_loss
+
+                    val_losses.append(total_loss)
 
                     pred_clusters = get_predicted_clusters(
                         span_starts, span_ends, antecedent_scores,
                         mention_scores=mention_scores, threshold=threshold
                     )
-                    pred_clusters = [c for c in pred_clusters if len(c) > 1]
-
                     gold_clusters = get_gold_clusters(filtered_spans, filtered_clusters)
-                    gold_clusters = [c for c in gold_clusters if len(c) > 1]
 
                     p, r, f1 = coref_metrics(pred_clusters, gold_clusters)
-
                     all_precisions.append(p)
                     all_recalls.append(r)
                     all_f1s.append(f1)
@@ -234,11 +223,10 @@ if __name__ == "__main__":
                     if b % 10 == 0:
                         visualize_scores_save(mention_scores, antecedent_scores, epoch=epoch + 1, batch_idx=b + 1)
 
-        avg_val_loss = sum(val_losses) / len(val_losses)
-        avg_p = sum(all_precisions) / len(all_precisions)
-        avg_r = sum(all_recalls) / len(all_recalls)
-        avg_f1 = sum(all_f1s) / len(all_f1s)
-        print(f"[Validation Epoch {epoch}] Loss: {avg_val_loss:.4f}, P: {avg_p:.3f}, R: {avg_r:.3f}, F1: {avg_f1:.3f}")
+        print(f"[Validation Epoch {epoch}] Loss: {sum(val_losses) / len(val_losses):.4f}, "
+              f"P: {sum(all_precisions)/len(all_precisions):.3f}, "
+              f"R: {sum(all_recalls)/len(all_recalls):.3f}, "
+              f"F1: {sum(all_f1s)/len(all_f1s):.3f}")
 
         if (epoch + 1) % save_every == 0:
             ckpt_path = os.path.join(save_path, f"model_epoch_{epoch+1}.pt")
