@@ -68,6 +68,31 @@ def get_gold_antecedents(topk_indices, mention_to_cluster):
     return gold_antecedents
 
 
+def filter_overlapping_spans(spans, scores):
+    """
+    spans: list of (start, end)
+    scores: torch.Tensor или list с оценками упоминаний
+
+    Возвращает список отфильтрованных span, убирая пересекающиеся с меньшим score.
+    """
+    # Сортируем спаны по убыванию mention_scores
+    sorted_indices = sorted(range(len(spans)), key=lambda i: scores[i], reverse=True)
+    selected = []
+    occupied = set()
+
+    for idx in sorted_indices:
+        start, end = spans[idx]
+        # Проверяем пересечение с уже выбранными
+        overlaps = False
+        for s, e in selected:
+            # Если есть пересечение, отбрасываем
+            if not (end < s or start > e):
+                overlaps = True
+                break
+        if not overlaps:
+            selected.append((start, end))
+    return selected
+
 
 def visualize_scores_save(mention_scores, pairwise_scores, epoch=None, batch_idx=None, save_dir='plots'):
     import os

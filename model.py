@@ -104,6 +104,7 @@ class SpanBert(nn.Module):
             span_repr = self.mention_scorer.span_repr(sequence_output[b:b + 1], span_starts_tensor,
                                                       span_ends_tensor).squeeze(0)
 
+            # Если есть top_k — сначала выбираем топ
             if top_k is not None and top_k < len(mention_scores):
                 top_k_ = min(top_k, len(mention_scores))
                 top_indices = torch.topk(mention_scores, k=top_k_).indices
@@ -114,6 +115,19 @@ class SpanBert(nn.Module):
             else:
                 filtered_starts = starts
                 filtered_ends = ends
+
+            # Фильтрация пересекающихся спанов с помощью NMS по mention_scores
+            spans = list(zip(filtered_starts, filtered_ends))
+            mention_scores_list = mention_scores.cpu().tolist()
+            filtered_spans_nms = filter_overlapping_spans(spans, mention_scores_list)
+
+            # Индексы отобранных спанов
+            indices_to_keep = [spans.index(span) for span in filtered_spans_nms]
+
+            span_repr = span_repr[indices_to_keep]
+            mention_scores = mention_scores[indices_to_keep]
+            filtered_starts = [filtered_starts[i] for i in indices_to_keep]
+            filtered_ends = [filtered_ends[i] for i in indices_to_keep]
 
             n = span_repr.size(0)
             antecedent_scores = torch.full((n, n), float("-inf"), device=device)
