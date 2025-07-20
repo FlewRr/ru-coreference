@@ -211,7 +211,7 @@ if __name__ == "__main__":
                     val_losses.append(total_loss)
 
                     pred_clusters = get_predicted_clusters(
-                        span_starts, span_ends, antecedent_scores,
+                        filtered_span_starts_batch[b], filtered_span_ends_batch[b], antecedent_scores,
                         mention_scores=mention_scores, threshold=threshold
                     )
                     gold_clusters = get_gold_clusters(filtered_spans, filtered_clusters)

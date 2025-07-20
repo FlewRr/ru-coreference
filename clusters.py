@@ -14,21 +14,22 @@ def get_predicted_clusters(span_starts, span_ends, antecedent_scores, mention_sc
         valid_antecedents = list(range(i))  # только предыдущие
 
         if not valid_antecedents:
+            # Создаем новый кластер из одиночного спана
             clusters.append([span_i])
-            mention_to_cluster[span_i] = [span_i]
+            mention_to_cluster[span_i] = clusters[-1]
             continue
 
         scores_i = antecedent_scores[i][:i]
 
-        # Добавим "нулевой антецедент"
-        null_score = torch.tensor([0.0], device=scores_i.device)  # можно и -inf
+        # Добавляем "нулевой антецедент"
+        null_score = torch.tensor([0.0], device=scores_i.device)  # можно и -inf, но 0 удобнее
         all_scores = torch.cat([null_score, scores_i])  # [null, span_0, ..., span_i-1]
         best_idx = torch.argmax(all_scores).item()
 
         if best_idx == 0:
-            # выбран null — оставляем спан как одиночный
+            # выбран null — создаем одиночный кластер
             clusters.append([span_i])
-            mention_to_cluster[span_i] = [span_i]
+            mention_to_cluster[span_i] = clusters[-1]
             continue
 
         antecedent_idx = valid_antecedents[best_idx - 1]
@@ -39,12 +40,11 @@ def get_predicted_clusters(span_starts, span_ends, antecedent_scores, mention_sc
 
         if cluster_i and cluster_j:
             if cluster_i is not cluster_j:
-                merged = cluster_i + cluster_j
-                clusters.remove(cluster_i)
+                # Объединяем кластеры, расширяя cluster_i
+                cluster_i.extend(cluster_j)
                 clusters.remove(cluster_j)
-                clusters.append(merged)
-                for span in merged:
-                    mention_to_cluster[span] = merged
+                for span in cluster_j:
+                    mention_to_cluster[span] = cluster_i
         elif cluster_i:
             cluster_i.append(span_j)
             mention_to_cluster[span_j] = cluster_i
@@ -52,6 +52,7 @@ def get_predicted_clusters(span_starts, span_ends, antecedent_scores, mention_sc
             cluster_j.append(span_i)
             mention_to_cluster[span_i] = cluster_j
         else:
+            # Оба спана не в кластерах — создаем новый
             new_cluster = [span_j, span_i]
             clusters.append(new_cluster)
             mention_to_cluster[span_i] = new_cluster
