@@ -139,9 +139,6 @@ if __name__ == "__main__":
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
                 gold_antecedents = torch.tensor(gold_antecedents, dtype=torch.long, device=device).unsqueeze(0)
 
-                with torch.no_grad():
-                    ratio = (gold_antecedents == -1).float().mean().item()
-                    print(f"[Debug] Null antecedent ratio: {ratio:.2f}")
 
                 mention_loss = F.binary_cross_entropy_with_logits(mention_scores, mention_labels)
                 reg_loss = reg_weight * torch.norm(mention_scores, p=2)
