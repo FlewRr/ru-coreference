@@ -7,6 +7,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utils import filter_overlapping_spans
+
+
 class SpanRepresentation(nn.Module):
     def __init__(self, hidden_size: int, max_span_width: int = 30, width_embedding_dim: int = 30):
         super().__init__()
