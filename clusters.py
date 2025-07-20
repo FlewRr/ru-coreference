@@ -1,3 +1,5 @@
+import torch
+
 def get_predicted_clusters(span_starts, span_ends, antecedent_scores, mention_scores=None, threshold=0.0):
     clusters = []
     mention_to_cluster = {}
