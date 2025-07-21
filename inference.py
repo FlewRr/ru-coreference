@@ -62,7 +62,7 @@ def run_inference(
             attention_mask=attention_mask,
             span_starts=[span_starts],
             span_ends=[span_ends],
-            top_k=None  # Обрезаем вручную ниже
+            top_k=top_k
         )
 
     mention_scores = mention_scores_batch[0]
