@@ -6,15 +6,16 @@ def get_predicted_clusters(
     span_ends: list[int],
     antecedent_scores: torch.Tensor,
     mention_scores: torch.Tensor | None = None,
-    threshold: float = 0.0
-) -> list[list[int, int]]:
+    threshold: float = 0.5
+) -> list[list[tuple[int, int]]]:
     clusters = []
     mention_to_cluster = {}
     mention_spans = list(zip(span_starts, span_ends))
     M = len(mention_spans)
 
     for i in range(M):
-        if mention_scores is not None and mention_scores[i].item() < threshold:
+        score_i = mention_scores[i].item() if mention_scores is not None else 0.0
+        if mention_scores is not None and torch.sigmoid(mention_scores[i]).item() < threshold:
             continue
 
         span_i = mention_spans[i]
@@ -27,8 +28,9 @@ def get_predicted_clusters(
 
         scores_i = antecedent_scores[i][:i]
 
-        null_score = torch.tensor([0.0], device=scores_i.device)  # можно и -inf, но 0 удобнее
-        all_scores = torch.cat([null_score, scores_i])  # [null, span_0, ..., span_i-1]
+        null_score = torch.tensor([0.0], device=scores_i.device)  # null = логит 0
+        all_scores = torch.cat([null_score, scores_i])  # (K+1)
+
         best_idx = torch.argmax(all_scores).item()
 
         if best_idx == 0:
@@ -49,14 +51,15 @@ def get_predicted_clusters(
                 clusters.remove(cluster_j)
                 for span in cluster_j:
                     mention_to_cluster[span] = cluster_i
-        
+
         elif cluster_i:
             cluster_i.append(span_j)
             mention_to_cluster[span_j] = cluster_i
-        
+
         elif cluster_j:
             cluster_j.append(span_i)
             mention_to_cluster[span_i] = cluster_j
+
         else:
             new_cluster = [span_j, span_i]
             clusters.append(new_cluster)
