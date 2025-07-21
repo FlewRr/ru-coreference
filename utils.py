@@ -1,6 +1,3 @@
-import torch
-import torch.nn.functional as F
-
 # def coref_loss(antecedent_scores, gold_antecedents):
 #
 #     batch_size, num_mentions, max_antecedents = antecedent_scores.shape
@@ -17,10 +14,11 @@ import torch.nn.functional as F
 #     return loss
 
 import torch
-import torch.nn.functional as F
+from torch.nn import functional as F
 from matplotlib import pyplot as plt
 import seaborn as sns
 import numpy as np
+
 
 def coref_loss(antecedent_scores, gold_antecedents, antecedent_mask=None):
     """

@@ -1,14 +1,17 @@
+from argparse import ArgumentParser
 import os
 import json
+
+from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, random_split
-import torch.nn.functional as F
-from tqdm import tqdm
+from torch.nn import functional as F
+
 from utils import coref_loss, get_gold_antecedents, visualize_scores_save
 from dataset import collate_fn, RuCoCoDataset
 from model import SpanBert
 from clusters import get_predicted_clusters
-from argparse import ArgumentParser
+
 
 def get_gold_clusters(mentions, mention_to_cluster):
     cluster_map = {}
@@ -18,7 +21,8 @@ def get_gold_clusters(mentions, mention_to_cluster):
         cluster_map[cluster_id].append(mention)
     return list(cluster_map.values())
 
-def extract_coref_links(clusters):
+
+def extract_coref_links(clusters: list[list[int]]):
     links = set()
     for cluster in clusters:
         for i in range(len(cluster)):
@@ -26,7 +30,8 @@ def extract_coref_links(clusters):
                 links.add((cluster[i], cluster[j]))
     return links
 
-def coref_metrics(pred_clusters, gold_clusters):
+
+def coref_metrics(pred_clusters, gold_clusters) -> tuple[float, float, float]:
     pred_links = extract_coref_links(pred_clusters)
     gold_links = extract_coref_links(gold_clusters)
 
@@ -39,10 +44,12 @@ def coref_metrics(pred_clusters, gold_clusters):
     f1 = 2 * precision * recall / (precision + recall + 1e-8)
     return precision, recall, f1
 
+
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--config_path", type=str, required=True)
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()

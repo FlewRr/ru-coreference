@@ -1,11 +1,14 @@
+from typing import Any
 import argparse
+
 import torch
 from transformers import AutoTokenizer
+
 from model import SpanBert
 from clusters import get_predicted_clusters
 
 
-def get_spans(offset_mapping, max_span_width=10):
+def get_spans(offset_mapping: list[tuple[int, int]], max_span_width: int = 10) -> list[tuple[int, int]]:
     spans = []
     for start in range(len(offset_mapping)):
         for end in range(start, min(start + max_span_width, len(offset_mapping))):
@@ -15,7 +18,7 @@ def get_spans(offset_mapping, max_span_width=10):
     return spans
 
 
-def reconstruct_text_spans(span_indices, offset_mapping, original_text):
+def reconstruct_text_spans(span_indices: list[tuple[int, int]], offset_mapping: list[tuple[int, int]], original_text: str) -> list[str]:
     span_texts = []
     for start_idx, end_idx in span_indices:
         start_char = offset_mapping[start_idx][0]
@@ -24,7 +27,13 @@ def reconstruct_text_spans(span_indices, offset_mapping, original_text):
     return span_texts
 
 
-def run_inference(text, model, tokenizer, device, threshold=0.3, top_k=30):
+def run_inference(
+        text: str| list[str],
+        model: SpanBert,
+        tokenizer: AutoTokenizer,
+        device: torch.device | str,
+        threshold: float = 0.3,
+        top_k: int = 30) -> list[Any]:
     encoded = tokenizer(
         text,
         return_offsets_mapping=True,
@@ -38,7 +47,6 @@ def run_inference(text, model, tokenizer, device, threshold=0.3, top_k=30):
     attention_mask = encoded['attention_mask'].to(device)
     offset_mapping = encoded['offset_mapping'][0].tolist()
 
-    # Удалим пустые спаны (например, спец. токены CLS/SEP)
     offset_mapping = [(s, e) if s != e else None for s, e in offset_mapping]
     valid_token_indices = [i for i, val in enumerate(offset_mapping) if val is not None]
     offset_mapping = [offset_mapping[i] for i in valid_token_indices]
@@ -68,7 +76,7 @@ def run_inference(text, model, tokenizer, device, threshold=0.3, top_k=30):
     top_k = min(top_k, len(mention_scores))
     top_indices = torch.topk(mention_scores, top_k).indices.tolist()
 
-    mention_scores = mention_scores[top_indices]  # ✅ фильтрация перед кластеризацией
+    mention_scores = mention_scores[top_indices]
     filtered_starts = [starts[i] for i in top_indices]
     filtered_ends = [ends[i] for i in top_indices]
     filtered_antecedent_scores = antecedent_scores[top_indices][:, top_indices]

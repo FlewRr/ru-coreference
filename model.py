@@ -1,11 +1,8 @@
-import torch
-import torch.nn as nn
-from typing import List, Tuple
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
+from torch.nn import functional as F
 
 from utils import filter_overlapping_spans
 
@@ -33,6 +30,7 @@ class SpanRepresentation(nn.Module):
         span_repr = self.output_layer(span_embedding)  # (batch, num_spans, hidden_size)
         return span_repr
 
+
 class PairwiseScorer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 150):
         super().__init__()
@@ -44,7 +42,7 @@ class PairwiseScorer(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
-    def forward(self, span1: torch.Tensor, span2: torch.Tensor):
+    def forward(self, span1: torch.Tensor, span2: torch.Tensor) -> torch.Tensor:
         features = torch.cat([
             span1,
             span2,
@@ -61,22 +59,38 @@ class MentionScorer(nn.Module):
         self.span_repr = SpanRepresentation(hidden_size, max_span_width)
         self.mention_scorer = nn.Linear(hidden_size, 1)
 
-    def forward(self, sequence_output, span_starts, span_ends):
+    def forward(
+            self,
+            sequence_output: torch.Tensor,
+            span_starts: torch.Tensor,
+            span_ends: torch.Tensor) -> torch.Tensor:
         span_emb = self.span_repr(sequence_output, span_starts, span_ends)
         scores = self.mention_scorer(span_emb).squeeze(-1)
         return scores
 
+
 class SpanBert(nn.Module):
-    def __init__(self, model_name="DeepPavlov/rubert-base-cased", max_span_width=10, top_k: int=50):
+    def __init__(
+            self,
+            bert_backbone_name: str = "DeepPavlov/rubert-base-cased",
+            max_span_width: int = 10,
+            top_k: int = 50):
         super().__init__()
-        self.bert = AutoModel.from_pretrained(model_name)
+        self.bert = AutoModel.from_pretrained(bert_backbone_name)
         hidden_size = self.bert.config.hidden_size
         self.mention_scorer = MentionScorer(hidden_size, max_span_width)
         self.pairwise_scorer = PairwiseScorer(hidden_size)
         self.max_span_width = max_span_width
         self.top_k = top_k
 
-    def forward(self, input_ids, attention_mask, span_starts, span_ends, top_k=None):
+    def forward(
+            self,
+            input_ids: torch.Tensor,
+            attention_mask: torch.Tensor | None,
+            span_starts: torch.Tensor,
+            span_ends: torch.Tensor,
+            top_k: int | None = None
+    ):
         batch_size = input_ids.size(0)
         device = input_ids.device
         sequence_output = self.bert(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
@@ -107,7 +121,6 @@ class SpanBert(nn.Module):
             span_repr = self.mention_scorer.span_repr(sequence_output[b:b + 1], span_starts_tensor,
                                                       span_ends_tensor).squeeze(0)
 
-            # Если есть top_k — сначала выбираем топ
             if top_k is not None and top_k < len(mention_scores):
                 top_k_ = min(top_k, len(mention_scores))
                 top_indices = torch.topk(mention_scores, k=top_k_).indices
@@ -119,12 +132,9 @@ class SpanBert(nn.Module):
                 filtered_starts = starts
                 filtered_ends = ends
 
-            # Фильтрация пересекающихся спанов с помощью NMS по mention_scores
             spans = list(zip(filtered_starts, filtered_ends))
             mention_scores_list = mention_scores.cpu().tolist()
             filtered_spans_nms = filter_overlapping_spans(spans, mention_scores_list)
-
-            # Индексы отобранных спанов
             indices_to_keep = [spans.index(span) for span in filtered_spans_nms]
 
             span_repr = span_repr[indices_to_keep]

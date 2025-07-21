@@ -1,18 +1,29 @@
 import os
 import json
+from typing import Any
+
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 
+
 class RuCoCoDataset(Dataset):
-    def __init__(self, data_dir: str, tokenizer_name="DeepPavlov/rubert-base-cased", max_length=512):
+    def __init__(
+            self,
+            data_dir: str,
+            tokenizer_name: str = "DeepPavlov/rubert-base-cased",
+            max_length: int = 512):
         self.data_dir = data_dir
         self.files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.json')]
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
         self.max_length = max_length
 
-    def _char_to_token_span(self, offset_mapping, start_char, end_char):
+    def _char_to_token_span(
+            self,
+            offset_mapping: list[tuple[int, int]],
+            start_char: int,
+            end_char: int) -> tuple[int, int]:
         token_start = None
         token_end = None
 
@@ -39,11 +50,10 @@ class RuCoCoDataset(Dataset):
 
         return token_start, token_end
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.files)
 
-
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> dict[str, Any]:
         filepath = self.files[idx]
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -107,7 +117,7 @@ class RuCoCoDataset(Dataset):
             'text': text
         }
 
-def collate_fn(batch):
+def collate_fn(batch: dict[str, Any]) -> dict[str, torch.Tensor]:
     input_ids = pad_sequence([item['input_ids'] for item in batch], batch_first=True, padding_value=0)
     attention_mask = pad_sequence([item['attention_mask'] for item in batch], batch_first=True, padding_value=0)
 
@@ -131,6 +141,7 @@ def collate_fn(batch):
         'gold_antecedents': gold_antecedents,
         'text': texts
     }
+
 
 if __name__ == "__main__":
     dataset = RuCoCoDataset(data_dir="RuCoCo")
