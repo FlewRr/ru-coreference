@@ -55,12 +55,16 @@ def get_gold_antecedents(topk_indices, mention_to_cluster):
 
     for i, idx_i in enumerate(topk_indices):
         cluster_i = mention_to_cluster[idx_i]
-        found_antecedent = -1
 
+        if cluster_i == -1:
+            gold_antecedents.append(-1)
+            continue
+
+        found_antecedent = -1
         for j in range(i):
             idx_j = topk_indices[j]
             if mention_to_cluster[idx_j] == cluster_i:
-                found_antecedent = j  # берём самого последнего предыдущего
+                found_antecedent = j
         gold_antecedents.append(found_antecedent)
 
     return gold_antecedents

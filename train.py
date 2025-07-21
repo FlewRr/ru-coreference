@@ -63,7 +63,7 @@ if __name__ == "__main__":
     save_every = config.get("save_every", 1)
     save_path = config.get("save_path", "checkpoints")
     data_dir = config.get("data_dir", "RuCoCo")
-    threshold = config.get("threshold", 0.8)
+    threshold = config.get("threshold", 0.5)
     top_k = config.get("top_k", 50)
     val_top_k = config.get("val_top_k", 15)
     loss_weight = config.get("mention_loss_weight", 0.5)
@@ -137,7 +137,10 @@ if __name__ == "__main__":
                     dtype=torch.float, device=device
                 )
 
-                span_to_cluster = {(s, e): cid for (s, e), cid in zip(mention_spans, mention_to_cluster)}
+                span_to_cluster = {
+                    span: cid for span, cid in zip(batch['mentions'][b], mention_to_cluster_batch[b])
+                    if span in filtered_spans
+                }
                 filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
 
                 gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
@@ -204,7 +207,10 @@ if __name__ == "__main__":
                         dtype=torch.float, device=device
                     )
 
-                    span_to_cluster = {(s, e): cid for (s, e), cid in zip(mention_spans, mention_to_cluster)}
+                    span_to_cluster = {
+                        span: cid for span, cid in zip(batch['mentions'][b], mention_to_cluster_batch[b])
+                        if span in filtered_spans
+                    }
                     filtered_clusters = [span_to_cluster.get(span, -1) for span in filtered_spans]
 
                     gold_antecedents = get_gold_antecedents(list(range(len(filtered_clusters))), filtered_clusters)
